@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import { env } from 'cloudflare:workers';
 import { useState, useEffect, useRef } from 'react';
@@ -77,10 +77,25 @@ const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () 
 	});
 });
 
+// ─── Search Params ──────────────────────────────────────────────────
+
+type WorkflowSearch = {
+	instanceId?: string;
+	rid?: string;
+	oid?: string;
+	items?: string;
+};
+
 // ─── Route ──────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/workflow')({
 	component: WorkflowPage,
+	validateSearch: (search: Record<string, unknown>): WorkflowSearch => ({
+		instanceId: typeof search.instanceId === 'string' ? search.instanceId : undefined,
+		rid: typeof search.rid === 'string' ? search.rid : undefined,
+		oid: typeof search.oid === 'string' ? search.oid : undefined,
+		items: typeof search.items === 'string' ? search.items : undefined,
+	}),
 });
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -110,15 +125,22 @@ function WorkflowPage() {
 // ─── Workflow Orchestrator ──────────────────────────────────────────
 
 function WorkflowOrchestrator() {
-	const [rid, setRid] = useState('');
-	const [oid, setOid] = useState<string>(() => crypto.randomUUID());
+	const search = Route.useSearch();
+	const navigate = useNavigate();
+
+	const [rid, setRid] = useState(search.rid ?? '');
+	const [oid, setOid] = useState<string>(search.oid ?? crypto.randomUUID());
 	const [restaurants, setRestaurants] = useState<RestaurantViewState[]>([]);
 	const [restaurant, setRestaurant] = useState<RestaurantViewState | null>(null);
-	const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+	const [selectedItems, setSelectedItems] = useState<Set<string>>(
+		search.items ? new Set(search.items.split(',')) : new Set(),
+	);
 	const [listStatus, setListStatus] = useState<Status>({ type: 'idle' });
-	const [instanceId, setInstanceId] = useState<string | null>(null);
+	const [instanceId, setInstanceId] = useState<string | null>(search.instanceId ?? null);
 	const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatusResponse | null>(null);
-	const [submitStatus, setSubmitStatus] = useState<Status>({ type: 'idle' });
+	const [submitStatus, setSubmitStatus] = useState<Status>(
+		search.instanceId ? { type: 'success', message: 'Workflow started' } : { type: 'idle' },
+	);
 	const [paymentStatus, setPaymentStatus] = useState<Status>({ type: 'idle' });
 	const [copied, setCopied] = useState(false);
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -132,13 +154,18 @@ function WorkflowOrchestrator() {
 
 	useEffect(() => () => stopPolling(), []);
 
-	// Load all restaurants on mount
+	// Load all restaurants on mount, and restore selection from search params
 	useEffect(() => {
 		setListStatus({ type: 'loading' });
 		fetchAllRestaurants()
 			.then((data) => {
 				setRestaurants(data);
 				setListStatus({ type: 'success' });
+				// Restore restaurant selection from URL
+				if (search.rid) {
+					const found = data.find((r) => r.restaurantId === search.rid) ?? null;
+					setRestaurant(found);
+				}
 			})
 			.catch((err) => {
 				setListStatus({
@@ -146,6 +173,20 @@ function WorkflowOrchestrator() {
 					message: err instanceof Error ? err.message : 'Failed to load restaurants',
 				});
 			});
+	}, []);
+
+	// Resume polling if we have an instanceId from URL
+	useEffect(() => {
+		if (search.instanceId) {
+			getWorkflowStatus({ data: search.instanceId })
+				.then((res) => {
+					setWorkflowStatus(res);
+					if (!isTerminal(res.status)) {
+						startPolling(search.instanceId!);
+					}
+				})
+				.catch(() => {});
+		}
 	}, []);
 
 	const isTerminal = (s: string) => ['complete', 'errored', 'terminated'].includes(s);
@@ -161,6 +202,14 @@ function WorkflowOrchestrator() {
 				stopPolling();
 			}
 		}, 2000);
+	};
+
+	const updateSearchParams = (params: WorkflowSearch) => {
+		navigate({
+			to: '/workflow',
+			search: (prev) => ({ ...prev, ...params }),
+			replace: true,
+		});
 	};
 
 	const handleRestaurantChange = (selectedId: string) => {
@@ -208,6 +257,12 @@ function WorkflowOrchestrator() {
 			});
 			setInstanceId(res.instanceId);
 			setSubmitStatus({ type: 'success', message: 'Workflow started' });
+			updateSearchParams({
+				instanceId: res.instanceId,
+				rid,
+				oid,
+				items: Array.from(selectedItems).join(','),
+			});
 			startPolling(res.instanceId);
 		} catch (err) {
 			setSubmitStatus({
