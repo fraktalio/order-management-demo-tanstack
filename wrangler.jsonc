@@ -22,7 +22,7 @@
 	"hyperdrive": [
 		{
 			"binding": "HYPERDRIVE",
-			"id": "<your-hyperdrive-id>", // from `wrangler hyperdrive create or dashboard`
+			"id": "142ed2bd300341e5a2a034a05adca8f3",
 			"localConnectionString": "postgres://ivan:password@localhost:5432/postgres",
 		},
 	],
