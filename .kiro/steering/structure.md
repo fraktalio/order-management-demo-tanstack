@@ -11,6 +11,8 @@ src/
 │   ├── query-handlers/    # EventSourcedQueryHandler per view
 │   │   ├── restaurantQuery.ts
 │   │   └── orderQuery.ts
+│   ├── workflows/         # Cloudflare Workflow entrypoints
+│   │   └── paymentWorkflow.ts  # PaymentWorkflow — places order, waits for payment, marks prepared
 │   ├── api.ts             # REST API helpers (handleCommand, json)
 │   └── index.ts
 ├── domain/                # Pure domain model (fmodel-decider DCB pattern)
@@ -54,7 +56,7 @@ src/
 │       └── orders.$orderId.prepare.ts          # POST /api/orders/:id/prepare
 ├── routeTree.gen.ts       # Auto-generated route tree — DO NOT EDIT
 ├── router.tsx             # Router factory with config
-├── server.ts              # Cloudflare Worker entrypoint — exports fetch handler + Workflows
+├── server.ts              # Cloudflare Worker entrypoint — exports fetch handler + PaymentWorkflow
 └── styles.css             # Global styles (Tailwind v4 import + base overrides)
 
 public/                    # Static assets served as-is
@@ -70,10 +72,11 @@ tsconfig.json              # TypeScript config
 - **Routing**: Add new routes as files in `src/routes/`. TanStack Router auto-generates the route tree. Never edit `src/routeTree.gen.ts` manually.
 - **Layout**: The root layout lives in `src/routes/__root.tsx` using `shellComponent`. All pages render inside it.
 - **Components**: Shared/reusable components go in `src/components/`.
-- **Server entry**: `src/server.ts` is the Cloudflare Worker entrypoint. Export Durable Objects, Workflows, queue/cron handlers here.
+- **Server entry**: `src/server.ts` is the Cloudflare Worker entrypoint. Re-export Workflow classes (e.g., `PaymentWorkflow`), Durable Objects, queue/cron handlers here.
 - **Generated files**: `routeTree.gen.ts` and `worker-configuration.d.ts` are auto-generated. Do not modify them directly.
 - **Domain model**: `src/domain/` contains pure domain logic only — deciders, views, types, errors. No infrastructure dependencies.
-- **Application layer**: `src/application/` wires deciders + repositories into `EventSourcedCommandHandler` and `EventSourcedQueryHandler` from fmodel-decider.
+- **Application layer**: `src/application/` wires deciders + repositories into `EventSourcedCommandHandler` and `EventSourcedQueryHandler` from fmodel-decider. Also contains Cloudflare Workflow entrypoints in `workflows/`.
+- **Workflows**: `src/application/workflows/` contains Cloudflare Workflow classes (e.g., `PaymentWorkflow`). These are re-exported from `src/server.ts` as required by Cloudflare.
 - **Infrastructure**: `src/infrastructure/` contains Postgres-specific repository implementations, the postgres.js client adapter, the `withDb` helper, and the `dcb_schema.sql`.
 - **API routes**: REST endpoints in `src/routes/api/` use TanStack Start server routes. Each calls a command handler via `withDb(env, sql => handler.handle(command))`.
 - **Page routes**: HTML page routes (`restaurant.tsx`, `order.tsx`, `kitchen.tsx`) use `createServerFn` to call domain handlers directly — no intermediate REST calls.

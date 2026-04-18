@@ -1,6 +1,6 @@
 # Product Overview
 
-A restaurant order management demo built with TanStack Start, deployed to Cloudflare Workers. It demonstrates event sourcing with Dynamic Consistency Boundary (DCB) using the fmodel-decider library, backed by PostgreSQL via Cloudflare Hyperdrive.
+A restaurant order management demo built with TanStack Start, deployed to Cloudflare Workers. It demonstrates event sourcing with Dynamic Consistency Boundary (DCB) using the fmodel-decider library, backed by PostgreSQL via Cloudflare Hyperdrive. Includes a Cloudflare Workflow (`PaymentWorkflow`) that orchestrates the full order-to-payment lifecycle.
 
 ## Pages
 
@@ -8,7 +8,7 @@ A restaurant order management demo built with TanStack Start, deployed to Cloudf
 - **Restaurant** (`/restaurant`) — Create restaurants with menus, change existing restaurant menus. Uses server functions calling command/query handlers directly
 - **Order** (`/order`) — Place orders by selecting menu items from a restaurant, track order status by restaurant + order ID
 - **Kitchen** (`/kitchen`) — Dashboard showing all orders. Auto-refreshes via polling. Mark orders as prepared. Queries `dcb.events` directly for all order-related events and projects them through the orderView
-- **Workflow** (`/workflow`) — Trigger and monitor Cloudflare Workflows (`MyWorkflow`)
+- **Workflow** (`/workflow`) — Trigger and monitor the `PaymentWorkflow` Cloudflare Workflow (places order → waits for payment → marks prepared)
 
 ## Architecture
 
