@@ -1,13 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import { env } from 'cloudflare:workers';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { withDb } from '@/infrastructure/db';
 import { placeOrderHandler } from '@/application/command-handlers/placeOrder.ts';
-import { restaurantQueryHandler } from '@/application/query-handlers/restaurantQuery.ts';
 import { orderQueryHandler } from '@/application/query-handlers/orderQuery.ts';
-import { restaurantId, orderId, menuItemId, type MenuItem } from '@/domain/api.ts';
-import type { RestaurantViewState } from '@/domain/views/restaurantView.ts';
+import { restaurantId, orderId, menuItemId } from '@/domain/api.ts';
+import { restaurantView, type RestaurantViewState } from '@/domain/views/restaurantView.ts';
 import type { OrderViewState } from '@/domain/views/orderView.ts';
 import { ShoppingCart, Search, ClipboardCopy, Check } from 'lucide-react';
 
@@ -37,17 +36,25 @@ const placeOrder = createServerFn({ method: 'POST' })
 		});
 	});
 
-const fetchRestaurantForOrder = createServerFn({ method: 'POST' })
-	.inputValidator((input: string) => input)
-	.handler(async ({ data: rid }) => {
-		return withDb(env, (sql) => {
-			const handler = restaurantQueryHandler(sql);
-			return handler.handle([
-				['restaurantId:' + rid, 'RestaurantCreatedEvent'],
-				['restaurantId:' + rid, 'RestaurantMenuChangedEvent'],
-			]);
-		});
+const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () => {
+	return withDb(env, async (sql) => {
+		const rows = await sql.unsafe<{ data: Buffer }[]>(
+			`SELECT e.data FROM dcb.events e
+			 WHERE e.type IN ('RestaurantCreatedEvent', 'RestaurantMenuChangedEvent')
+			 ORDER BY e.id ASC`,
+		);
+
+		const map = new Map<string, RestaurantViewState>();
+		for (const row of rows) {
+			const event = JSON.parse(Buffer.from(row.data).toString('utf-8'));
+			const rid = event.restaurantId as string;
+			const current = map.get(rid) ?? restaurantView.initialState;
+			const next = restaurantView.evolve(current, event);
+			if (next) map.set(rid, next);
+		}
+		return Array.from(map.values());
 	});
+});
 
 const fetchOrder = createServerFn({ method: 'POST' })
 	.inputValidator((input: { orderId: string; restaurantId: string }) => input)
@@ -98,31 +105,33 @@ type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string
 function PlaceOrderForm() {
 	const [rid, setRid] = useState('');
 	const [oid, setOid] = useState(() => crypto.randomUUID());
+	const [restaurants, setRestaurants] = useState<RestaurantViewState[]>([]);
 	const [restaurant, setRestaurant] = useState<RestaurantViewState | null>(null);
 	const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-	const [menuStatus, setMenuStatus] = useState<Status>({ type: 'idle' });
+	const [listStatus, setListStatus] = useState<Status>({ type: 'idle' });
 	const [status, setStatus] = useState<Status>({ type: 'idle' });
 	const [copied, setCopied] = useState(false);
 
-	const loadMenu = async () => {
-		if (!rid.trim()) return;
-		setMenuStatus({ type: 'loading' });
-		setRestaurant(null);
-		setSelectedItems(new Set());
-		try {
-			const data = await fetchRestaurantForOrder({ data: rid });
-			if (data) {
-				setRestaurant(data);
-				setMenuStatus({ type: 'success' });
-			} else {
-				setMenuStatus({ type: 'error', message: 'Restaurant not found' });
-			}
-		} catch (err) {
-			setMenuStatus({
-				type: 'error',
-				message: err instanceof Error ? err.message : 'Failed to load menu',
+	useEffect(() => {
+		setListStatus({ type: 'loading' });
+		fetchAllRestaurants()
+			.then((data) => {
+				setRestaurants(data);
+				setListStatus({ type: 'success' });
+			})
+			.catch((err) => {
+				setListStatus({
+					type: 'error',
+					message: err instanceof Error ? err.message : 'Failed to load restaurants',
+				});
 			});
-		}
+	}, []);
+
+	const handleRestaurantChange = (selectedId: string) => {
+		setRid(selectedId);
+		setSelectedItems(new Set());
+		const found = restaurants.find((r) => r.restaurantId === selectedId) ?? null;
+		setRestaurant(found);
 	};
 
 	const toggleItem = (id: string) => {
@@ -166,7 +175,6 @@ function PlaceOrderForm() {
 			setOid(crypto.randomUUID());
 			setRestaurant(null);
 			setSelectedItems(new Set());
-			setMenuStatus({ type: 'idle' });
 		} catch (err) {
 			setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Request failed' });
 		}
@@ -181,26 +189,32 @@ function PlaceOrderForm() {
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label htmlFor="order-rid" className="block text-sm font-medium text-gray-300">
-						Restaurant ID
+						Restaurant
 					</label>
-					<div className="mt-1 flex gap-2">
-						<input
-							id="order-rid"
-							type="text"
-							value={rid}
-							onChange={(e) => setRid(e.target.value)}
-							required
-							className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
-						/>
-						<button
-							type="button"
-							onClick={loadMenu}
-							disabled={menuStatus.type === 'loading'}
-							className="rounded-lg bg-slate-700 px-4 py-2 font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
-						>
-							Load
-						</button>
-					</div>
+					<select
+						id="order-rid"
+						value={rid}
+						onChange={(e) => handleRestaurantChange(e.target.value)}
+						required
+						disabled={listStatus.type === 'loading'}
+						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+					>
+						<option value="">
+							{listStatus.type === 'loading'
+								? 'Loading restaurants…'
+								: restaurants.length === 0
+									? 'No restaurants available'
+									: 'Select a restaurant'}
+						</option>
+						{restaurants.map((r) => (
+							<option key={r.restaurantId} value={r.restaurantId}>
+								{r.name} — {r.menu.cuisine}
+							</option>
+						))}
+					</select>
+					{listStatus.type === 'error' && (
+						<p className="mt-1 text-xs text-red-400">{listStatus.message}</p>
+					)}
 				</div>
 				<div>
 					<label htmlFor="order-id" className="block text-sm font-medium text-gray-300">
@@ -230,8 +244,6 @@ function PlaceOrderForm() {
 					</div>
 				</div>
 			</div>
-
-			{menuStatus.type === 'error' && <p className="text-sm text-red-400">{menuStatus.message}</p>}
 
 			{restaurant && restaurant.menu.menuItems.length > 0 && (
 				<fieldset className="space-y-2">
@@ -289,8 +301,25 @@ function PlaceOrderForm() {
 function OrderStatusTracker() {
 	const [oid, setOid] = useState('');
 	const [rid, setRid] = useState('');
+	const [restaurants, setRestaurants] = useState<RestaurantViewState[]>([]);
+	const [listStatus, setListStatus] = useState<Status>({ type: 'idle' });
 	const [orderView, setOrderView] = useState<OrderViewState | null>(null);
 	const [status, setStatus] = useState<Status>({ type: 'idle' });
+
+	useEffect(() => {
+		setListStatus({ type: 'loading' });
+		fetchAllRestaurants()
+			.then((data) => {
+				setRestaurants(data);
+				setListStatus({ type: 'success' });
+			})
+			.catch((err) => {
+				setListStatus({
+					type: 'error',
+					message: err instanceof Error ? err.message : 'Failed to load restaurants',
+				});
+			});
+	}, []);
 
 	const trackOrder = async () => {
 		if (!oid.trim() || !rid.trim()) return;
@@ -317,15 +346,31 @@ function OrderStatusTracker() {
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label htmlFor="track-rid" className="block text-sm font-medium text-gray-300">
-						Restaurant ID
+						Restaurant
 					</label>
-					<input
+					<select
 						id="track-rid"
-						type="text"
 						value={rid}
 						onChange={(e) => setRid(e.target.value)}
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
-					/>
+						disabled={listStatus.type === 'loading'}
+						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+					>
+						<option value="">
+							{listStatus.type === 'loading'
+								? 'Loading restaurants…'
+								: restaurants.length === 0
+									? 'No restaurants available'
+									: 'Select a restaurant'}
+						</option>
+						{restaurants.map((r) => (
+							<option key={r.restaurantId} value={r.restaurantId}>
+								{r.name} — {r.menu.cuisine}
+							</option>
+						))}
+					</select>
+					{listStatus.type === 'error' && (
+						<p className="mt-1 text-xs text-red-400">{listStatus.message}</p>
+					)}
 				</div>
 				<div>
 					<label htmlFor="track-oid" className="block text-sm font-medium text-gray-300">

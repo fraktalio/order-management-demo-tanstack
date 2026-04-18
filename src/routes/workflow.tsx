@@ -3,8 +3,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { env } from 'cloudflare:workers';
 import { useState, useEffect, useRef } from 'react';
 import { withDb } from '@/infrastructure/db';
-import { restaurantQueryHandler } from '@/application/query-handlers/restaurantQuery';
-import type { RestaurantViewState } from '@/domain/views/restaurantView';
+import { restaurantView, type RestaurantViewState } from '@/domain/views/restaurantView';
 import type { OrderWorkflowParams, PaymentEvent } from '@/application/workflows/paymentWorkflow';
 import {
 	Play,
@@ -58,17 +57,25 @@ const sendPaymentEvent = createServerFn({ method: 'POST' })
 		return { sent: true };
 	});
 
-const fetchRestaurant = createServerFn({ method: 'POST' })
-	.inputValidator((input: string) => input)
-	.handler(async ({ data: rid }) => {
-		return withDb(env, (sql) => {
-			const handler = restaurantQueryHandler(sql);
-			return handler.handle([
-				['restaurantId:' + rid, 'RestaurantCreatedEvent'],
-				['restaurantId:' + rid, 'RestaurantMenuChangedEvent'],
-			]);
-		});
+const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () => {
+	return withDb(env, async (sql) => {
+		const rows = await sql.unsafe<{ data: Buffer }[]>(
+			`SELECT e.data FROM dcb.events e
+			 WHERE e.type IN ('RestaurantCreatedEvent', 'RestaurantMenuChangedEvent')
+			 ORDER BY e.id ASC`,
+		);
+
+		const map = new Map<string, RestaurantViewState>();
+		for (const row of rows) {
+			const event = JSON.parse(Buffer.from(row.data).toString('utf-8'));
+			const rid = event.restaurantId as string;
+			const current = map.get(rid) ?? restaurantView.initialState;
+			const next = restaurantView.evolve(current, event);
+			if (next) map.set(rid, next);
+		}
+		return Array.from(map.values());
 	});
+});
 
 // ─── Route ──────────────────────────────────────────────────────────
 
@@ -105,9 +112,10 @@ function WorkflowPage() {
 function WorkflowOrchestrator() {
 	const [rid, setRid] = useState('');
 	const [oid, setOid] = useState<string>(() => crypto.randomUUID());
+	const [restaurants, setRestaurants] = useState<RestaurantViewState[]>([]);
 	const [restaurant, setRestaurant] = useState<RestaurantViewState | null>(null);
 	const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-	const [menuStatus, setMenuStatus] = useState<Status>({ type: 'idle' });
+	const [listStatus, setListStatus] = useState<Status>({ type: 'idle' });
 	const [instanceId, setInstanceId] = useState<string | null>(null);
 	const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatusResponse | null>(null);
 	const [submitStatus, setSubmitStatus] = useState<Status>({ type: 'idle' });
@@ -124,6 +132,22 @@ function WorkflowOrchestrator() {
 
 	useEffect(() => () => stopPolling(), []);
 
+	// Load all restaurants on mount
+	useEffect(() => {
+		setListStatus({ type: 'loading' });
+		fetchAllRestaurants()
+			.then((data) => {
+				setRestaurants(data);
+				setListStatus({ type: 'success' });
+			})
+			.catch((err) => {
+				setListStatus({
+					type: 'error',
+					message: err instanceof Error ? err.message : 'Failed to load restaurants',
+				});
+			});
+	}, []);
+
 	const isTerminal = (s: string) => ['complete', 'errored', 'terminated'].includes(s);
 
 	const startPolling = (id: string) => {
@@ -139,25 +163,11 @@ function WorkflowOrchestrator() {
 		}, 2000);
 	};
 
-	const loadMenu = async () => {
-		if (!rid.trim()) return;
-		setMenuStatus({ type: 'loading' });
-		setRestaurant(null);
+	const handleRestaurantChange = (selectedId: string) => {
+		setRid(selectedId);
 		setSelectedItems(new Set());
-		try {
-			const data = await fetchRestaurant({ data: rid });
-			if (data) {
-				setRestaurant(data);
-				setMenuStatus({ type: 'success' });
-			} else {
-				setMenuStatus({ type: 'error', message: 'Restaurant not found' });
-			}
-		} catch (err) {
-			setMenuStatus({
-				type: 'error',
-				message: err instanceof Error ? err.message : 'Failed to load menu',
-			});
-		}
+		const found = restaurants.find((r) => r.restaurantId === selectedId) ?? null;
+		setRestaurant(found);
 	};
 
 	const toggleItem = (id: string) => {
@@ -259,27 +269,32 @@ function WorkflowOrchestrator() {
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div>
 							<label htmlFor="wf-rid" className="block text-sm font-medium text-gray-300">
-								Restaurant ID
+								Restaurant
 							</label>
-							<div className="mt-1 flex gap-2">
-								<input
-									id="wf-rid"
-									type="text"
-									value={rid}
-									onChange={(e) => setRid(e.target.value)}
-									required
-									disabled={workflowStarted}
-									className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
-								/>
-								<button
-									type="button"
-									onClick={loadMenu}
-									disabled={menuStatus.type === 'loading' || workflowStarted}
-									className="rounded-lg bg-slate-700 px-4 py-2 font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
-								>
-									Load
-								</button>
-							</div>
+							<select
+								id="wf-rid"
+								value={rid}
+								onChange={(e) => handleRestaurantChange(e.target.value)}
+								required
+								disabled={workflowStarted || listStatus.type === 'loading'}
+								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+							>
+								<option value="">
+									{listStatus.type === 'loading'
+										? 'Loading restaurants…'
+										: restaurants.length === 0
+											? 'No restaurants available'
+											: 'Select a restaurant'}
+								</option>
+								{restaurants.map((r) => (
+									<option key={r.restaurantId} value={r.restaurantId}>
+										{r.name} — {r.menu.cuisine}
+									</option>
+								))}
+							</select>
+							{listStatus.type === 'error' && (
+								<p className="mt-1 text-xs text-red-400">{listStatus.message}</p>
+							)}
 						</div>
 						<div>
 							<label htmlFor="wf-oid" className="block text-sm font-medium text-gray-300">
@@ -311,10 +326,6 @@ function WorkflowOrchestrator() {
 							</div>
 						</div>
 					</div>
-
-					{menuStatus.type === 'error' && (
-						<p className="text-sm text-red-400">{menuStatus.message}</p>
-					)}
 
 					{restaurant && restaurant.menu.menuItems.length > 0 && (
 						<fieldset className="space-y-2">
