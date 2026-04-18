@@ -201,6 +201,49 @@ test('Order View - Order Prepared Event', () => {
 });
 ```
 
+## Cloudflare Workflows
+
+[Cloudflare Workflows](https://developers.cloudflare.com/workflows/) provide
+durable, multi-step execution with automatic retries, persistent state, and the
+ability to pause and wait for external events. They are a powerful primitive for
+orchestrating complex flows — common patterns include **Sagas** and **Process
+Managers**, where a long-running process coordinates multiple commands, reacts
+to external signals, and handles compensating actions on failure.
+
+This demo includes a `PaymentWorkflow` that orchestrates the full
+order-to-payment lifecycle:
+
+1. **Place Order** — calls the `placeOrderHandler` to persist the order via
+   event sourcing
+2. **Await Payment** — pauses with `step.waitForEvent` until a payment
+   confirmation (or rejection) arrives from a dummy payment gateway
+3. **Process Payment** — validates the payment result; fails the workflow on
+   declined payments
+4. **Mark Order Prepared** — on successful payment, calls
+   `markOrderAsPreparedHandler` to complete the order
+
+The workflow uses `waitForEvent` with a matching event type
+(`payment-received`), and the UI sends the event via `instance.sendEvent` —
+simulating what an external payment gateway webhook would do in production.
+
+```ts
+// Wait for an external event (pauses the workflow durably)
+const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
+	type: 'payment-received',
+	timeout: '1 hour',
+});
+
+// Send the event from the UI / webhook
+await instance.sendEvent({
+	type: 'payment-received',
+	payload: { transactionId: 'txn_abc', amount: '25.00', status: 'success' },
+});
+```
+
+Workflows are defined in `src/application/workflows/` and re-exported from
+`src/server.ts` (Cloudflare requires workflow classes to be exported from the
+Worker entrypoint). The binding is configured in `wrangler.jsonc`.
+
 ## Project Structure
 
 ```
@@ -208,6 +251,7 @@ src/
 ├── application/              # Use-case orchestration
 │   ├── command-handlers/     # EventSourcedCommandHandler per use case
 │   ├── query-handlers/       # EventSourcedQueryHandler per view
+│   ├── workflows/            # Cloudflare Workflow definitions (Saga / Process Manager)
 │   ├── api.ts                # REST API helpers (handleCommand, json)
 │   └── index.ts              # Barrel exports
 ├── domain/                   # Pure domain model (no infrastructure deps)
@@ -228,7 +272,7 @@ src/
 │   ├── restaurant.tsx        # Restaurant management (create, change menu)
 │   ├── order.tsx             # Order management (place order, track status)
 │   ├── kitchen.tsx           # Kitchen dashboard (view orders, mark prepared)
-│   ├── workflow.tsx          # Cloudflare Workflow trigger page
+│   ├── workflow.tsx          # Order + Payment workflow (Cloudflare Workflows)
 │   └── api/                  # REST API server routes
 ├── router.tsx                # Router factory
 ├── server.ts                 # Cloudflare Worker entrypoint
@@ -304,5 +348,6 @@ pnpm format:check
 - [fmodel-decider](https://github.com/fraktalio/fmodel-decider) — DCB pattern library
 - [TanStack Start](https://tanstack.com/start) — Full-stack React framework
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/) — Edge runtime
+- [Cloudflare Workflows](https://developers.cloudflare.com/workflows/) — Durable multi-step execution
 - [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) — Postgres connection pooling
 - [Event Modeling](https://eventmodeling.org) — Design methodology
