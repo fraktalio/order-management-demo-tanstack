@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: ivan
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/infrastructure/dcb_schema.sql:/docker-entrypoint-initdb.d/01-dcb_schema.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ivan -d postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
