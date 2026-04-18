@@ -329,6 +329,27 @@ Workflows are defined in `src/application/workflows/` and re-exported from
 `src/server.ts` (Cloudflare requires workflow classes to be exported from the
 Worker entrypoint). The binding is configured in `wrangler.jsonc`.
 
+### Step Idempotency and the Dual-Write Problem
+
+Each `step.do()` follows a three-phase lifecycle: the engine marks the step as
+running, executes your function, then persists the return value. If the Worker
+is evicted between your code completing and the engine saving the result — a
+narrow but real window — the step is retried with the exact same inputs.
+
+This is a classic **dual-write problem**: the workflow writes to two independent
+systems (your Postgres event store and Cloudflare's Durable Object storage)
+without a distributed transaction. Cloudflare
+[recommends making steps idempotent](https://developers.cloudflare.com/workflows/build/rules-of-workflows/#ensure-apibinding-calls-are-idempotent)
+because they cannot atomically commit both your side effect and the step
+completion together.
+
+In this demo, the DCB event store provides a natural solution. The
+`placeOrderDecider` and `markOrderAsPreparedDecider` check the event stream
+before deciding: if the command was already handled (the event already exists),
+the decider returns an empty array — no new events, no error. This makes
+retries a silent no-op at the domain level, and the workflow step completes
+successfully on the second attempt.
+
 ## Project Structure
 
 ```
