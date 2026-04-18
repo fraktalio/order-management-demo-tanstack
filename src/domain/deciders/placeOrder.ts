@@ -1,7 +1,6 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	MenuItemsNotAvailableError,
-	OrderAlreadyExistsError,
 	type PlaceOrderCommand,
 	type RestaurantCreatedEvent,
 	type RestaurantId,
@@ -30,7 +29,7 @@ export const placeOrderDecider: DcbDecider<
 					throw new RestaurantNotFoundError(command.restaurantId);
 				}
 				if (currentState.orderPlaced) {
-					throw new OrderAlreadyExistsError(command.orderId);
+					return []; // Idempotent: duplicate command is a no-op
 				}
 				if (currentState.menu === null) {
 					throw new RestaurantNotFoundError(command.restaurantId);

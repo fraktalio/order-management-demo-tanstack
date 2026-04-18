@@ -1,7 +1,6 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderAsPreparedCommand,
-	OrderAlreadyPreparedError,
 	type OrderId,
 	OrderNotFoundError,
 	type OrderPreparedEvent,
@@ -26,7 +25,7 @@ export const markOrderAsPreparedDecider: DcbDecider<
 					throw new OrderNotFoundError(command.orderId);
 				}
 				if (currentState.prepared) {
-					throw new OrderAlreadyPreparedError(command.orderId);
+					return []; // Idempotent: duplicate command is a no-op
 				}
 				return [
 					{
