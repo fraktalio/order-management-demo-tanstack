@@ -6,15 +6,17 @@ import type {
 	RestaurantOrderPlacedEvent,
 	OrderPaidEvent,
 	OrderPaymentFailedEvent,
+	OrderPreparedEvent,
 } from '@/domain/api.ts';
 
 export const markOrderPaymentFailedRepository = (sql: postgres.Sql) =>
 	new PostgresEventRepository<
 		MarkOrderPaymentFailedCommand,
-		RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPaymentFailedEvent,
+		RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPaymentFailedEvent | OrderPreparedEvent,
 		OrderPaymentFailedEvent
 	>(createSqlClient(sql), (cmd) => [
 		['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
 		['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 		['orderId:' + cmd.orderId, 'OrderPaymentFailedEvent'],
+		['orderId:' + cmd.orderId, 'OrderPreparedEvent'],
 	]);

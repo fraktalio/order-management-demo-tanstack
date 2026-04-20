@@ -49,14 +49,14 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                         | Command                         | Reads                                                                                | Produces                     |
-| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
-| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                             | `RestaurantCreatedEvent`     |
-| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                               | `RestaurantMenuChangedEvent` |
-| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent` | `RestaurantOrderPlacedEvent` |
-| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`                                       | `OrderPaidEvent`             |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`            | `OrderPaymentFailedEvent`    |
-| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                 | `OrderPreparedEvent`         |
+| Decider                         | Command                         | Reads                                                                                           | Produces                     |
+| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                        | `RestaurantCreatedEvent`     |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                          | `RestaurantMenuChangedEvent` |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`            | `RestaurantOrderPlacedEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPaidEvent`             |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent` | `OrderPaymentFailedEvent`    |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPreparedEvent`         |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
@@ -98,10 +98,12 @@ placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent"),
                           ("orderId:<id>",      "RestaurantOrderPlacedEvent")]
 markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
-                          ("orderId:<id>",      "OrderPaidEvent")]
+                          ("orderId:<id>",      "OrderPaidEvent"),
+                          ("orderId:<id>",      "OrderPreparedEvent")]
 markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
-                          ("orderId:<id>",      "OrderPaymentFailedEvent")]
+                          ("orderId:<id>",      "OrderPaymentFailedEvent"),
+                          ("orderId:<id>",      "OrderPreparedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]
@@ -131,6 +133,8 @@ const events = await handler.handle(createRestaurantCommand);
 
 Deciders are tested using a **Given/When/Then** format powered by
 `DeciderEventSourcedSpec`. This makes tests read like executable specifications:
+
+![GWT](gwt1.png)
 
 ```ts
 test('Place Order - Success', () => {
@@ -224,17 +228,31 @@ to external signals, and handles compensating actions on failure.
 
 ![Workflow](workflow1.png)
 
-This demo includes a `PaymentWorkflow` that orchestrates the
-order-to-payment lifecycle:
+This demo includes a `PaymentWorkflow` that wraps two independent command
+handlers — `PlaceOrderCommand` and `MarkOrderPaidCommand` (or
+`MarkOrderPaymentFailedCommand`) — into a single durable, multi-step execution.
+Each command handler is a standalone use case with its own decider and sliced
+repository, but the workflow orchestrates them as a cohesive unit with retries,
+persistent state, and the ability to pause mid-flight and wait for an external
+signal.
 
-1. **Place Order** — calls the `placeOrderHandler` to persist the order via
-   event sourcing
+The diagram below shows how the workflow spans the two command handlers,
+with the payment gateway event bridging them:
+
+![Workflow](workflow.png)
+
+The workflow steps:
+
+1. **Place Order** — calls `placeOrderHandler` to persist the order via event
+   sourcing
 2. **Await Payment** — pauses with `step.waitForEvent` until a payment
    confirmation (or rejection) arrives from a dummy payment gateway
 3. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
    to record the payment in the event store
 4. **Mark Order Payment Failed** — on declined payment, calls
    `markOrderPaymentFailedHandler` to record the failure
+
+![Workflow](workflow.png)
 
 Preparation is a separate concern — only the Kitchen page can mark a paid order
 as prepared, enforced by the `markOrderAsPreparedDecider` which throws

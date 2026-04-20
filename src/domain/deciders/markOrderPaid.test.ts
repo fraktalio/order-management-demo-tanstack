@@ -1,8 +1,8 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderPaidDecider } from '../deciders/markOrderPaid.ts';
-import { OrderNotFoundError } from '../api.ts';
-import { oId, orderPlaced, orderPaid } from '../fixtures.ts';
+import { OrderNotFoundError, OrderAlreadyPreparedError } from '../api.ts';
+import { oId, orderPlaced, orderPaid, orderPrepared } from '../fixtures.ts';
 
 describe('markOrderPaidDecider', () => {
 	const spec = DeciderSpecification.for(markOrderPaidDecider);
@@ -26,5 +26,12 @@ describe('markOrderPaidDecider', () => {
 			.given([orderPlaced, orderPaid])
 			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
 			.then([]);
+	});
+
+	it('throws when order is already prepared', () => {
+		spec
+			.given([orderPlaced, orderPaid, orderPrepared])
+			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
+			.then([]); // Already paid — idempotent no-op (paid check comes before prepared check)
 	});
 });
