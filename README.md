@@ -49,14 +49,14 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                         | Command                         | Reads                                                                                | Produces                     |
-| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
-| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                             | `RestaurantCreatedEvent`     |
-| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                               | `RestaurantMenuChangedEvent` |
-| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent` | `RestaurantOrderPlacedEvent` |
-| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`                                       | `OrderPaidEvent`             |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`            | `OrderPaymentFailedEvent`    |
-| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                 | `OrderPreparedEvent`         |
+| Decider                         | Command                         | Reads                                                                                           | Produces                     |
+| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                        | `RestaurantCreatedEvent`     |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                          | `RestaurantMenuChangedEvent` |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`            | `RestaurantOrderPlacedEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPaidEvent`             |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent` | `OrderPaymentFailedEvent`    |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPreparedEvent`         |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
@@ -98,10 +98,12 @@ placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent"),
                           ("orderId:<id>",      "RestaurantOrderPlacedEvent")]
 markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
-                          ("orderId:<id>",      "OrderPaidEvent")]
+                          ("orderId:<id>",      "OrderPaidEvent"),
+                          ("orderId:<id>",      "OrderPreparedEvent")]
 markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
-                          ("orderId:<id>",      "OrderPaymentFailedEvent")]
+                          ("orderId:<id>",      "OrderPaymentFailedEvent"),
+                          ("orderId:<id>",      "OrderPreparedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]

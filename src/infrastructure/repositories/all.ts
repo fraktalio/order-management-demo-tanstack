@@ -36,12 +36,14 @@ export class AllDeciderRepository {
 					return [
 						['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaidEvent'],
+						['orderId:' + cmd.orderId, 'OrderPreparedEvent'],
 					];
 				case 'MarkOrderPaymentFailedCommand':
 					return [
 						['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaymentFailedEvent'],
+						['orderId:' + cmd.orderId, 'OrderPreparedEvent'],
 					];
 				case 'MarkOrderAsPreparedCommand':
 					return [
