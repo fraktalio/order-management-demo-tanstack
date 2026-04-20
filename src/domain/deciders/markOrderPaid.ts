@@ -3,7 +3,6 @@ import {
 	type MarkOrderPaidCommand,
 	type OrderId,
 	OrderNotFoundError,
-	OrderAlreadyPaidError,
 	type OrderPaidEvent,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
