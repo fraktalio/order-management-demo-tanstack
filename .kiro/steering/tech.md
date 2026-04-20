@@ -5,6 +5,7 @@
 - **TanStack Start** (v1.132+) — full-stack React framework with SSR, server functions, and file-based routing
 - **TanStack Router** (v1.132+) — type-safe file-based routing
 - **React 19** with react-dom
+- **[fmodel-decider](https://github.com/fraktalio/fmodel-decider)** (`@fraktalio/fmodel-decider`) — event sourcing with Dynamic Consistency Boundary (DCB) pattern. Provides `DcbDecider`, `EventSourcedCommandHandler`, `EventSourcedQueryHandler`, `PostgresEventRepository`, and Given/When/Then test DSL
 
 ## Styling
 
@@ -25,7 +26,7 @@
 
 - **Cloudflare Workers** — runtime target via `@cloudflare/vite-plugin`
 - **Wrangler** — Cloudflare CLI for dev, deploy, and type generation
-- Cloudflare Workflows configured (binding: `MY_WORKFLOW`)
+- **Cloudflare Workflows** — durable multi-step execution with retries, persistent state, and `waitForEvent` for external signals. Binding: `MY_WORKFLOW`. `PaymentWorkflow` wraps `PlaceOrderCommand` + `MarkOrderPaidCommand`/`MarkOrderPaymentFailedCommand` into a single workflow
 - **Hyperdrive** — Postgres connection pooling and caching, configured in `wrangler.jsonc`
 
 ## Database

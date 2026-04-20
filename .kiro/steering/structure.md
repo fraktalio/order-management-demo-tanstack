@@ -7,12 +7,14 @@ src/
 │   │   ├── createRestaurant.ts
 │   │   ├── changeRestaurantMenu.ts
 │   │   ├── placeOrder.ts
+│   │   ├── markOrderPaid.ts
+│   │   ├── markOrderPaymentFailed.ts
 │   │   └── markOrderAsPrepared.ts
 │   ├── query-handlers/    # EventSourcedQueryHandler per view
 │   │   ├── restaurantQuery.ts
 │   │   └── orderQuery.ts
 │   ├── workflows/         # Cloudflare Workflow entrypoints
-│   │   └── paymentWorkflow.ts  # PaymentWorkflow — places order, waits for payment, marks prepared
+│   │   └── paymentWorkflow.ts  # PaymentWorkflow — places order, waits for payment, marks paid or failed
 │   ├── api.ts             # REST API helpers (handleCommand, json)
 │   └── index.ts
 ├── domain/                # Pure domain model (fmodel-decider DCB pattern)
@@ -21,6 +23,8 @@ src/
 │   │   ├── createRestaurant.ts      (+test)
 │   │   ├── changeRestaurantMenu.ts  (+test)
 │   │   ├── placeOrder.ts            (+test)
+│   │   ├── markOrderPaid.ts         (+test)
+│   │   ├── markOrderPaymentFailed.ts (+test)
 │   │   └── markOrderAsPrepared.ts   (+test)
 │   ├── views/             # Event projections for read-side state
 │   │   ├── restaurantView.ts  (+test)
@@ -36,6 +40,8 @@ src/
 │   │   ├── createRestaurant.ts
 │   │   ├── changeRestaurantMenu.ts
 │   │   ├── placeOrder.ts
+│   │   ├── markOrderPaid.ts
+│   │   ├── markOrderPaymentFailed.ts
 │   │   ├── markOrderAsPrepared.ts
 │   │   └── all.ts         # AllDeciderRepository (combined, educational)
 │   └── index.ts
@@ -46,9 +52,8 @@ src/
 │   ├── __root.tsx         # Root layout (shellComponent)
 │   ├── index.tsx          # Home page (path: "/")
 │   ├── restaurant.tsx     # Restaurant management — create restaurant, change menu
-│   ├── order.tsx          # Order management — place order, track order status
-│   ├── kitchen.tsx        # Kitchen dashboard — view all orders, mark as prepared
-│   ├── workflow.tsx       # Workflow trigger page (path: "/workflow")
+│   ├── order-workflow.tsx # Order + Payment workflow — place order, pay, track status
+│   ├── kitchen.tsx        # Kitchen dashboard — mark paid orders as prepared
 │   └── api/               # REST API server routes
 │       ├── restaurants.ts                      # POST /api/restaurants
 │       ├── restaurants.$restaurantId.menu.ts   # PUT  /api/restaurants/:id/menu
@@ -76,9 +81,9 @@ tsconfig.json              # TypeScript config
 - **Generated files**: `routeTree.gen.ts` and `worker-configuration.d.ts` are auto-generated. Do not modify them directly.
 - **Domain model**: `src/domain/` contains pure domain logic only — deciders, views, types, errors. No infrastructure dependencies.
 - **Application layer**: `src/application/` wires deciders + repositories into `EventSourcedCommandHandler` and `EventSourcedQueryHandler` from fmodel-decider. Also contains Cloudflare Workflow entrypoints in `workflows/`.
-- **Workflows**: `src/application/workflows/` contains Cloudflare Workflow classes (e.g., `PaymentWorkflow`). These are re-exported from `src/server.ts` as required by Cloudflare.
+- **Workflows**: `src/application/workflows/` contains Cloudflare Workflow classes (e.g., `PaymentWorkflow`). These are re-exported from `src/server.ts` as required by Cloudflare. The workflow wraps multiple command handlers into a single durable execution.
 - **Infrastructure**: `src/infrastructure/` contains Postgres-specific repository implementations, the postgres.js client adapter, the `withDb` helper, and the `dcb_schema.sql`.
 - **API routes**: REST endpoints in `src/routes/api/` use TanStack Start server routes. Each calls a command handler via `withDb(env, sql => handler.handle(command))`.
-- **Page routes**: HTML page routes (`restaurant.tsx`, `order.tsx`, `kitchen.tsx`) use `createServerFn` to call domain handlers directly — no intermediate REST calls.
+- **Page routes**: HTML page routes (`restaurant.tsx`, `order-workflow.tsx`, `kitchen.tsx`) use `createServerFn` to call domain handlers directly — no intermediate REST calls.
 - **Tests**: Co-located with source files (e.g., `createRestaurant.test.ts` next to `createRestaurant.ts`). Use Given–When–Then DSL from `test-specs.ts`.
 - **Local dev DB**: `docker-compose.yml` runs Postgres 17 and auto-applies `dcb_schema.sql` on first boot. Credentials match `wrangler.jsonc` `localConnectionString`.
