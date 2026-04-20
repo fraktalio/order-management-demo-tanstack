@@ -2,13 +2,19 @@ import { Projection } from '@fraktalio/fmodel-decider';
 import type {
 	MenuItem,
 	OrderId,
+	OrderPaidEvent,
+	OrderPaymentFailedEvent,
 	OrderPreparedEvent,
 	OrderStatus,
 	RestaurantId,
 	RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
-type OrderEvent = RestaurantOrderPlacedEvent | OrderPreparedEvent;
+export type OrderEvent =
+	| RestaurantOrderPlacedEvent
+	| OrderPaidEvent
+	| OrderPaymentFailedEvent
+	| OrderPreparedEvent;
 
 export type OrderViewState = {
 	readonly orderId: OrderId;
@@ -27,15 +33,12 @@ export const orderView: Projection<OrderViewState | null, OrderEvent> = new Proj
 					menuItems: event.menuItems,
 					status: 'CREATED',
 				};
+			case 'OrderPaidEvent':
+				return currentState !== null ? { ...currentState, status: 'PAID' } : currentState;
+			case 'OrderPaymentFailedEvent':
+				return currentState !== null ? { ...currentState, status: 'PAYMENT_FAILED' } : currentState;
 			case 'OrderPreparedEvent':
-				return currentState !== null
-					? {
-							orderId: currentState.orderId,
-							restaurantId: currentState.restaurantId,
-							menuItems: currentState.menuItems,
-							status: 'PREPARED',
-						}
-					: currentState;
+				return currentState !== null ? { ...currentState, status: 'PREPARED' } : currentState;
 			default: {
 				// @ts-expect-error exhaustive check
 				const _exhaustiveCheck: never = event;

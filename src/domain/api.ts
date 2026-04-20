@@ -58,6 +58,24 @@ export class OrderAlreadyPreparedError extends DomainError {
 	}
 }
 
+export class OrderAlreadyPaidError extends DomainError {
+	constructor(public readonly orderId: OrderId) {
+		super(`Order ${orderId} is already paid`);
+	}
+}
+
+export class OrderNotPaidError extends DomainError {
+	constructor(public readonly orderId: OrderId) {
+		super(`Order ${orderId} has not been paid`);
+	}
+}
+
+export class OrderPaymentAlreadyFailedError extends DomainError {
+	constructor(public readonly orderId: OrderId) {
+		super(`Order ${orderId} payment has already failed`);
+	}
+}
+
 export class MenuItemsNotAvailableError extends DomainError {
 	constructor(public readonly menuItemIds: readonly MenuItemId[]) {
 		super(`Menu items not available: ${menuItemIds.join(', ')}`);
@@ -69,7 +87,7 @@ export class MenuItemsNotAvailableError extends DomainError {
 export type RestaurantName = string;
 export type MenuItemName = string;
 export type MenuItemPrice = string;
-export type OrderStatus = 'NOT_CREATED' | 'CREATED' | 'PREPARED';
+export type OrderStatus = 'NOT_CREATED' | 'CREATED' | 'PAID' | 'PAYMENT_FAILED' | 'PREPARED';
 
 export type RestaurantMenuCuisine =
 	| 'GENERAL'
@@ -98,6 +116,8 @@ export type Command =
 	| CreateRestaurantCommand
 	| ChangeRestaurantMenuCommand
 	| PlaceOrderCommand
+	| MarkOrderPaidCommand
+	| MarkOrderPaymentFailedCommand
 	| MarkOrderAsPreparedCommand;
 
 export type CreateRestaurantCommand = {
@@ -120,6 +140,17 @@ export type PlaceOrderCommand = {
 	readonly menuItems: MenuItem[];
 };
 
+export type MarkOrderPaidCommand = {
+	readonly kind: 'MarkOrderPaidCommand';
+	readonly orderId: OrderId;
+};
+
+export type MarkOrderPaymentFailedCommand = {
+	readonly kind: 'MarkOrderPaymentFailedCommand';
+	readonly orderId: OrderId;
+	readonly reason: string;
+};
+
 export type MarkOrderAsPreparedCommand = {
 	readonly kind: 'MarkOrderAsPreparedCommand';
 	readonly orderId: OrderId;
@@ -131,6 +162,8 @@ export type Event =
 	| RestaurantCreatedEvent
 	| RestaurantMenuChangedEvent
 	| RestaurantOrderPlacedEvent
+	| OrderPaidEvent
+	| OrderPaymentFailedEvent
 	| OrderPreparedEvent;
 
 export type RestaurantCreatedEvent = TypeSafeEventShape<
@@ -163,6 +196,25 @@ export type RestaurantOrderPlacedEvent = TypeSafeEventShape<
 		readonly final: boolean;
 	},
 	['restaurantId', 'orderId']
+>;
+
+export type OrderPaidEvent = TypeSafeEventShape<
+	{
+		readonly kind: 'OrderPaidEvent';
+		readonly orderId: OrderId;
+		readonly final: boolean;
+	},
+	['orderId']
+>;
+
+export type OrderPaymentFailedEvent = TypeSafeEventShape<
+	{
+		readonly kind: 'OrderPaymentFailedEvent';
+		readonly orderId: OrderId;
+		readonly reason: string;
+		readonly final: boolean;
+	},
+	['orderId']
 >;
 
 export type OrderPreparedEvent = TypeSafeEventShape<

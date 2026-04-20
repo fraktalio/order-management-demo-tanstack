@@ -1,41 +1,36 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
-	type MarkOrderAsPreparedCommand,
+	type MarkOrderPaidCommand,
 	type OrderId,
 	OrderNotFoundError,
-	OrderNotPaidError,
+	OrderAlreadyPaidError,
 	type OrderPaidEvent,
-	type OrderPreparedEvent,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
-type MarkOrderAsPreparedState = {
+type MarkOrderPaidState = {
 	readonly orderId: OrderId | null;
 	readonly paid: boolean;
-	readonly prepared: boolean;
 };
 
-export const markOrderAsPreparedDecider: DcbDecider<
-	MarkOrderAsPreparedCommand,
-	MarkOrderAsPreparedState,
-	RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPreparedEvent,
-	OrderPreparedEvent
+export const markOrderPaidDecider: DcbDecider<
+	MarkOrderPaidCommand,
+	MarkOrderPaidState,
+	RestaurantOrderPlacedEvent | OrderPaidEvent,
+	OrderPaidEvent
 > = new DcbDecider(
 	(command, currentState) => {
 		switch (command?.kind) {
-			case 'MarkOrderAsPreparedCommand': {
+			case 'MarkOrderPaidCommand': {
 				if (currentState.orderId === null) {
 					throw new OrderNotFoundError(command.orderId);
 				}
-				if (currentState.prepared) {
+				if (currentState.paid) {
 					return []; // Idempotent: duplicate command is a no-op
-				}
-				if (!currentState.paid) {
-					throw new OrderNotPaidError(command.orderId);
 				}
 				return [
 					{
-						kind: 'OrderPreparedEvent',
+						kind: 'OrderPaidEvent',
 						orderId: command.orderId,
 						final: false,
 						tagFields: ['orderId'],
@@ -49,14 +44,12 @@ export const markOrderAsPreparedDecider: DcbDecider<
 	(currentState, event) => {
 		switch (event?.kind) {
 			case 'RestaurantOrderPlacedEvent':
-				return { orderId: event.orderId, paid: false, prepared: false };
+				return { orderId: event.orderId, paid: false };
 			case 'OrderPaidEvent':
 				return { ...currentState, paid: true };
-			case 'OrderPreparedEvent':
-				return { ...currentState, prepared: true };
 			default:
 				return currentState;
 		}
 	},
-	{ orderId: null, paid: false, prepared: false } as MarkOrderAsPreparedState,
+	{ orderId: null, paid: false } as MarkOrderPaidState,
 );

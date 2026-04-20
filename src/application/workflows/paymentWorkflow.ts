@@ -1,7 +1,8 @@
 import { WorkflowEntrypoint, type WorkflowStep, type WorkflowEvent } from 'cloudflare:workers';
 import { withDb } from '@/infrastructure/db';
 import { placeOrderHandler } from '@/application/command-handlers/placeOrder';
-import { markOrderAsPreparedHandler } from '@/application/command-handlers/markOrderAsPrepared';
+import { markOrderPaidHandler } from '@/application/command-handlers/markOrderPaid';
+import { markOrderPaymentFailedHandler } from '@/application/command-handlers/markOrderPaymentFailed';
 import { restaurantId, orderId, menuItemId } from '@/domain/api';
 
 // ─── Workflow Payload Types ─────────────────────────────────────────
@@ -46,45 +47,66 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 			},
 		);
 
-		// Step 2: Wait for payment confirmation from the dummy payment gateway
+		// Step 2: Wait for payment confirmation from the payment gateway
 		const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
 			type: 'payment-received',
 			timeout: '1 hour',
 		});
 
-		// Step 3: Process payment result
-		const paymentResult = await step.do('process-payment', async () => {
-			if (paymentEvent.payload.status !== 'success') {
-				throw new Error(`Payment failed — transaction ${paymentEvent.payload.transactionId}`);
-			}
-			return {
-				transactionId: paymentEvent.payload.transactionId,
-				amount: paymentEvent.payload.amount,
-				status: 'confirmed',
-			};
-		});
-
-		// Step 4: Mark order as prepared (simulating kitchen auto-confirm after payment)
-		await step.do(
-			'mark-order-prepared',
-			{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
-			async () => {
-				return withDb(this.env, async (sql) => {
-					const handler = markOrderAsPreparedHandler(sql);
-					await handler.handle({
-						kind: 'MarkOrderAsPreparedCommand',
-						orderId: orderId(oid),
+		// Step 3: Mark order as paid or payment failed
+		if (paymentEvent.payload.status === 'success') {
+			await step.do(
+				'mark-order-paid',
+				{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
+				async () => {
+					return withDb(this.env, async (sql) => {
+						const handler = markOrderPaidHandler(sql);
+						await handler.handle({
+							kind: 'MarkOrderPaidCommand',
+							orderId: orderId(oid),
+						});
+						return { orderId: oid, status: 'paid' };
 					});
-					return { orderId: oid, status: 'prepared' };
-				});
-			},
-		);
+				},
+			);
 
-		return {
-			orderId: orderResult.orderId,
-			restaurantId: orderResult.restaurantId,
-			payment: paymentResult,
-			finalStatus: 'prepared',
-		};
+			return {
+				orderId: orderResult.orderId,
+				restaurantId: orderResult.restaurantId,
+				payment: {
+					transactionId: paymentEvent.payload.transactionId,
+					amount: paymentEvent.payload.amount,
+					status: 'confirmed',
+				},
+				finalStatus: 'paid',
+			};
+		} else {
+			await step.do(
+				'mark-order-payment-failed',
+				{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
+				async () => {
+					return withDb(this.env, async (sql) => {
+						const handler = markOrderPaymentFailedHandler(sql);
+						await handler.handle({
+							kind: 'MarkOrderPaymentFailedCommand',
+							orderId: orderId(oid),
+							reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
+						});
+						return { orderId: oid, status: 'payment_failed' };
+					});
+				},
+			);
+
+			return {
+				orderId: orderResult.orderId,
+				restaurantId: orderResult.restaurantId,
+				payment: {
+					transactionId: paymentEvent.payload.transactionId,
+					amount: paymentEvent.payload.amount,
+					status: 'failed',
+				},
+				finalStatus: 'payment_failed',
+			};
+		}
 	}
 }

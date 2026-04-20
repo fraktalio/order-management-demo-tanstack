@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 import { useState, useEffect, useRef } from 'react';
 import { withDb } from '@/infrastructure/db';
 import { restaurantView, type RestaurantViewState } from '@/domain/views/restaurantView';
+import { orderView, type OrderViewState } from '@/domain/views/orderView';
 import type { OrderWorkflowParams, PaymentEvent } from '@/application/workflows/paymentWorkflow';
 import {
 	Play,
@@ -14,6 +15,7 @@ import {
 	CheckCircle2,
 	XCircle,
 	Clock,
+	Search,
 } from 'lucide-react';
 
 // ─── Server Functions ───────────────────────────────────────────────
@@ -21,9 +23,7 @@ import {
 const startOrderWorkflow = createServerFn({ method: 'POST' })
 	.inputValidator((input: OrderWorkflowParams) => input)
 	.handler(async ({ data }) => {
-		const instance = await env.MY_WORKFLOW.create({
-			params: data,
-		});
+		const instance = await env.MY_WORKFLOW.create({ params: data });
 		return { instanceId: instance.id };
 	});
 
@@ -50,10 +50,7 @@ const sendPaymentEvent = createServerFn({ method: 'POST' })
 	.inputValidator((input: { instanceId: string; payment: PaymentEvent }) => input)
 	.handler(async ({ data }) => {
 		const instance = await env.MY_WORKFLOW.get(data.instanceId);
-		await instance.sendEvent({
-			type: 'payment-received',
-			payload: data.payment,
-		});
+		await instance.sendEvent({ type: 'payment-received', payload: data.payment });
 		return { sent: true };
 	});
 
@@ -64,7 +61,6 @@ const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () 
 			 WHERE e.type IN ('RestaurantCreatedEvent', 'RestaurantMenuChangedEvent')
 			 ORDER BY e.id ASC`,
 		);
-
 		const map = new Map<string, RestaurantViewState>();
 		for (const row of rows) {
 			const event = JSON.parse(Buffer.from(row.data).toString('utf-8'));
@@ -77,6 +73,26 @@ const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () 
 	});
 });
 
+const fetchOrderByWorkflow = createServerFn({ method: 'POST' })
+	.inputValidator((input: { orderId: string; restaurantId: string }) => input)
+	.handler(async ({ data }) => {
+		return withDb(env, async (sql) => {
+			const rows = await sql.unsafe<{ data: Buffer }[]>(
+				`SELECT e.data FROM dcb.events e
+				 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
+				 ORDER BY e.id ASC`,
+			);
+			let state: OrderViewState | null = null;
+			for (const row of rows) {
+				const event = JSON.parse(Buffer.from(row.data).toString('utf-8'));
+				if (event.orderId === data.orderId) {
+					state = orderView.evolve(state, event);
+				}
+			}
+			return state;
+		});
+	});
+
 // ─── Search Params ──────────────────────────────────────────────────
 
 type WorkflowSearch = {
@@ -88,8 +104,8 @@ type WorkflowSearch = {
 
 // ─── Route ──────────────────────────────────────────────────────────
 
-export const Route = createFileRoute('/workflow')({
-	component: WorkflowPage,
+export const Route = createFileRoute('/order-workflow')({
+	component: OrderWorkflowPage,
 	validateSearch: (search: Record<string, unknown>): WorkflowSearch => ({
 		instanceId: typeof search.instanceId === 'string' ? search.instanceId : undefined,
 		rid: typeof search.rid === 'string' ? search.rid : undefined,
@@ -105,7 +121,7 @@ type WorkflowStatusResponse = Awaited<ReturnType<typeof getWorkflowStatus>>;
 
 // ─── Page ───────────────────────────────────────────────────────────
 
-function WorkflowPage() {
+function OrderWorkflowPage() {
 	return (
 		<div className="min-h-screen bg-slate-900 p-8 text-white">
 			<div className="mx-auto max-w-3xl">
@@ -113,10 +129,14 @@ function WorkflowPage() {
 					<Play className="h-8 w-8 text-cyan-400" />
 					<div>
 						<h1 className="text-3xl font-bold">Order Workflow</h1>
-						<p className="text-sm text-gray-400">Place an order → Await payment → Auto-prepare</p>
+						<p className="text-sm text-gray-400">
+							Place an order → Await payment → Mark paid or failed
+						</p>
 					</div>
 				</div>
 				<WorkflowOrchestrator />
+				<hr className="my-10 border-slate-700" />
+				<OrderTracker />
 			</div>
 		</div>
 	);
@@ -154,14 +174,12 @@ function WorkflowOrchestrator() {
 
 	useEffect(() => () => stopPolling(), []);
 
-	// Load all restaurants on mount, and restore selection from search params
 	useEffect(() => {
 		setListStatus({ type: 'loading' });
 		fetchAllRestaurants()
 			.then((data) => {
 				setRestaurants(data);
 				setListStatus({ type: 'success' });
-				// Restore restaurant selection from URL
 				if (search.rid) {
 					const found = data.find((r) => r.restaurantId === search.rid) ?? null;
 					setRestaurant(found);
@@ -175,15 +193,12 @@ function WorkflowOrchestrator() {
 			});
 	}, []);
 
-	// Resume polling if we have an instanceId from URL
 	useEffect(() => {
 		if (search.instanceId) {
 			getWorkflowStatus({ data: search.instanceId })
 				.then((res) => {
 					setWorkflowStatus(res);
-					if (!isTerminal(res.status)) {
-						startPolling(search.instanceId!);
-					}
+					if (!isTerminal(res.status)) startPolling(search.instanceId!);
 				})
 				.catch(() => {});
 		}
@@ -206,7 +221,7 @@ function WorkflowOrchestrator() {
 
 	const updateSearchParams = (params: WorkflowSearch) => {
 		navigate({
-			to: '/workflow',
+			to: '/order-workflow',
 			search: (prev) => ({ ...prev, ...params }),
 			replace: true,
 		});
@@ -215,8 +230,7 @@ function WorkflowOrchestrator() {
 	const handleRestaurantChange = (selectedId: string) => {
 		setRid(selectedId);
 		setSelectedItems(new Set());
-		const found = restaurants.find((r) => r.restaurantId === selectedId) ?? null;
-		setRestaurant(found);
+		setRestaurant(restaurants.find((r) => r.restaurantId === selectedId) ?? null);
 	};
 
 	const toggleItem = (id: string) => {
@@ -294,7 +308,9 @@ function WorkflowOrchestrator() {
 			});
 			setPaymentStatus({
 				type: 'success',
-				message: success ? 'Payment sent' : 'Payment declined',
+				message: success
+					? 'Payment approved — order marked as paid'
+					: 'Payment declined — order marked as payment failed',
 			});
 		} catch (err) {
 			setPaymentStatus({
@@ -307,16 +323,12 @@ function WorkflowOrchestrator() {
 	const isWaitingForPayment =
 		workflowStatus?.status === 'waiting' || workflowStatus?.status === 'running';
 	const workflowStarted = instanceId !== null;
+	const paymentFailed = workflowStatus?.output?.finalStatus === 'payment_failed';
 
 	return (
 		<div className="space-y-8">
 			{/* Step 1: Select restaurant & items */}
-			<StepCard
-				number={1}
-				title="Select Restaurant & Menu Items"
-				active={!workflowStarted}
-				done={workflowStarted}
-			>
+			<StepCard number={1} title="Place Order" active={!workflowStarted} done={workflowStarted}>
 				<form onSubmit={handleStartWorkflow} className="space-y-4">
 					{submitStatus.type === 'error' && (
 						<p className="text-sm text-red-400">{submitStatus.message}</p>
@@ -430,13 +442,13 @@ function WorkflowOrchestrator() {
 							className="flex items-center gap-2 rounded-lg bg-cyan-500 px-6 py-2 font-semibold transition-colors hover:bg-cyan-600 disabled:opacity-50"
 						>
 							<Play size={18} />
-							{submitStatus.type === 'loading' ? 'Starting…' : 'Start Order Workflow'}
+							{submitStatus.type === 'loading' ? 'Starting…' : 'Place Order & Start Workflow'}
 						</button>
 					)}
 				</form>
 			</StepCard>
 
-			{/* Step 2: Awaiting Payment */}
+			{/* Step 2: Payment Gateway */}
 			<StepCard
 				number={2}
 				title="Payment Gateway"
@@ -444,14 +456,17 @@ function WorkflowOrchestrator() {
 				done={paymentStatus.type === 'success'}
 			>
 				{!workflowStarted ? (
-					<p className="text-sm text-gray-500">Start the workflow to proceed to payment.</p>
+					<p className="text-sm text-gray-500">Place an order to proceed to payment.</p>
 				) : paymentStatus.type === 'success' ? (
-					<p className="text-sm text-green-400">{paymentStatus.message}</p>
+					<p
+						className={`text-sm ${paymentStatus.message?.includes('declined') ? 'text-red-400' : 'text-green-400'}`}
+					>
+						{paymentStatus.message}
+					</p>
 				) : (
 					<div className="space-y-4">
 						<p className="text-sm text-gray-300">
-							The workflow is waiting for a payment event. Simulate the dummy payment gateway
-							response:
+							The workflow is waiting for a payment event. Simulate the payment gateway response:
 						</p>
 						{paymentStatus.type === 'error' && (
 							<p className="text-sm text-red-400">{paymentStatus.message}</p>
@@ -463,7 +478,7 @@ function WorkflowOrchestrator() {
 								className="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 font-semibold transition-colors hover:bg-green-700 disabled:opacity-50"
 							>
 								<CreditCard size={18} />
-								{paymentStatus.type === 'loading' ? 'Sending…' : 'Pay — Approve'}
+								{paymentStatus.type === 'loading' ? 'Sending…' : 'Approve Payment'}
 							</button>
 							<button
 								onClick={() => handlePayment(false)}
@@ -471,7 +486,7 @@ function WorkflowOrchestrator() {
 								className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 font-semibold transition-colors hover:bg-red-700 disabled:opacity-50"
 							>
 								<XCircle size={18} />
-								Decline
+								Decline Payment
 							</button>
 						</div>
 					</div>
@@ -481,13 +496,17 @@ function WorkflowOrchestrator() {
 			{/* Step 3: Result */}
 			<StepCard
 				number={3}
-				title="Order Prepared"
+				title="Result"
 				active={false}
 				done={workflowStatus?.status === 'complete'}
 			>
 				{workflowStatus?.status === 'complete' && workflowStatus.output ? (
 					<div className="space-y-3">
-						<p className="text-green-400">Order workflow completed successfully.</p>
+						<p className={paymentFailed ? 'text-red-400' : 'text-green-400'}>
+							{paymentFailed
+								? 'Payment failed — order will not be prepared.'
+								: 'Payment approved — order is ready for preparation in the Kitchen.'}
+						</p>
 						<dl className="space-y-2 text-sm">
 							<div className="flex gap-2">
 								<dt className="font-medium text-gray-300">Order ID:</dt>
@@ -504,7 +523,11 @@ function WorkflowOrchestrator() {
 							<div className="flex gap-2">
 								<dt className="font-medium text-gray-300">Final Status:</dt>
 								<dd>
-									<span className="inline-block rounded-full bg-green-900 px-2 py-0.5 text-xs font-semibold text-green-200">
+									<span
+										className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+											paymentFailed ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'
+										}`}
+									>
 										{workflowStatus.output.finalStatus?.toUpperCase()}
 									</span>
 								</dd>
@@ -537,6 +560,149 @@ function WorkflowOrchestrator() {
 							</span>
 						)}
 					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ─── Order Tracker ──────────────────────────────────────────────────
+
+function OrderTracker() {
+	const [oid, setOid] = useState('');
+	const [rid, setRid] = useState('');
+	const [restaurants, setRestaurants] = useState<RestaurantViewState[]>([]);
+	const [listStatus, setListStatus] = useState<Status>({ type: 'idle' });
+	const [order, setOrder] = useState<OrderViewState | null>(null);
+	const [status, setStatus] = useState<Status>({ type: 'idle' });
+
+	useEffect(() => {
+		setListStatus({ type: 'loading' });
+		fetchAllRestaurants()
+			.then((data) => {
+				setRestaurants(data);
+				setListStatus({ type: 'success' });
+			})
+			.catch((err) => {
+				setListStatus({
+					type: 'error',
+					message: err instanceof Error ? err.message : 'Failed to load restaurants',
+				});
+			});
+	}, []);
+
+	const trackOrder = async () => {
+		if (!oid.trim() || !rid.trim()) return;
+		setStatus({ type: 'loading' });
+		setOrder(null);
+		try {
+			const data = await fetchOrderByWorkflow({ data: { orderId: oid, restaurantId: rid } });
+			if (data && data.orderId) {
+				setOrder(data);
+				setStatus({ type: 'success' });
+			} else {
+				setStatus({ type: 'error', message: 'Order not found' });
+			}
+		} catch (err) {
+			setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Request failed' });
+		}
+	};
+
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center gap-3">
+				<Search className="h-6 w-6 text-cyan-400" />
+				<h2 className="text-xl font-semibold">Track Order</h2>
+			</div>
+			{status.type === 'error' && <p className="text-red-400">{status.message}</p>}
+
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div>
+					<label htmlFor="track-rid" className="block text-sm font-medium text-gray-300">
+						Restaurant
+					</label>
+					<select
+						id="track-rid"
+						value={rid}
+						onChange={(e) => setRid(e.target.value)}
+						disabled={listStatus.type === 'loading'}
+						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+					>
+						<option value="">
+							{listStatus.type === 'loading'
+								? 'Loading restaurants…'
+								: restaurants.length === 0
+									? 'No restaurants available'
+									: 'Select a restaurant'}
+						</option>
+						{restaurants.map((r) => (
+							<option key={r.restaurantId} value={r.restaurantId}>
+								{r.name} — {r.menu.cuisine}
+							</option>
+						))}
+					</select>
+					{listStatus.type === 'error' && (
+						<p className="mt-1 text-xs text-red-400">{listStatus.message}</p>
+					)}
+				</div>
+				<div>
+					<label htmlFor="track-oid" className="block text-sm font-medium text-gray-300">
+						Order ID
+					</label>
+					<input
+						id="track-oid"
+						type="text"
+						value={oid}
+						onChange={(e) => setOid(e.target.value)}
+						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+					/>
+				</div>
+			</div>
+
+			<button
+				type="button"
+				onClick={trackOrder}
+				disabled={status.type === 'loading'}
+				className="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
+			>
+				<Search size={18} />
+				{status.type === 'loading' ? 'Loading…' : 'Track Order'}
+			</button>
+
+			{order && (
+				<div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+					<dl className="space-y-2 text-sm">
+						<div>
+							<dt className="font-medium text-gray-300">Order ID</dt>
+							<dd className="text-gray-400">{order.orderId}</dd>
+						</div>
+						<div>
+							<dt className="font-medium text-gray-300">Restaurant ID</dt>
+							<dd className="text-gray-400">{order.restaurantId}</dd>
+						</div>
+						<div>
+							<dt className="font-medium text-gray-300">Status</dt>
+							<dd>
+								<span
+									className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${orderStatusStyle(order.status)}`}
+								>
+									{order.status}
+								</span>
+							</dd>
+						</div>
+						<div>
+							<dt className="font-medium text-gray-300">Menu Items</dt>
+							<dd>
+								<ul className="list-disc pl-5 text-gray-400">
+									{order.menuItems.map((item) => (
+										<li key={item.menuItemId}>
+											{item.name} — {item.price}
+										</li>
+									))}
+								</ul>
+							</dd>
+						</div>
+					</dl>
 				</div>
 			)}
 		</div>
@@ -589,6 +755,19 @@ function StepCard({
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+function orderStatusStyle(s: string) {
+	switch (s) {
+		case 'PREPARED':
+			return 'bg-green-900 text-green-200';
+		case 'PAID':
+			return 'bg-cyan-900 text-cyan-200';
+		case 'PAYMENT_FAILED':
+			return 'bg-red-900 text-red-200';
+		default:
+			return 'bg-amber-900 text-amber-200';
+	}
+}
 
 function statusStyles(s: string) {
 	switch (s) {

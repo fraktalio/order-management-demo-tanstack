@@ -2,6 +2,8 @@ import {
 	type RestaurantCreatedEvent,
 	type RestaurantMenuChangedEvent,
 	type RestaurantOrderPlacedEvent,
+	type OrderPaidEvent,
+	type OrderPaymentFailedEvent,
 	type OrderPreparedEvent,
 	restaurantId,
 	orderId,
@@ -50,6 +52,21 @@ export const orderPlaced: RestaurantOrderPlacedEvent = {
 	menuItems: menu.menuItems,
 	final: false,
 	tagFields: ['restaurantId', 'orderId'],
+};
+
+export const orderPaid: OrderPaidEvent = {
+	kind: 'OrderPaidEvent',
+	orderId: oId,
+	final: false,
+	tagFields: ['orderId'],
+};
+
+export const orderPaymentFailed: OrderPaymentFailedEvent = {
+	kind: 'OrderPaymentFailedEvent',
+	orderId: oId,
+	reason: 'Insufficient funds',
+	final: false,
+	tagFields: ['orderId'],
 };
 
 export const orderPrepared: OrderPreparedEvent = {

@@ -19,7 +19,7 @@ The domain is designed using [Event Modeling](https://eventmodeling.org) — a
 blueprint that maps out commands, events, read models, and UI interactions in a
 single visual artifact.
 
-![Event Modeling Blueprint](f1.png)
+![Event Modeling Blueprint](em1.png)
 
 ## Tech Stack
 
@@ -49,12 +49,14 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                       | Command                       | Reads                                                                                | Produces                     |
-| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
-| `createRestaurantDecider`     | `CreateRestaurantCommand`     | `RestaurantCreatedEvent`                                                             | `RestaurantCreatedEvent`     |
-| `changeRestaurantMenuDecider` | `ChangeRestaurantMenuCommand` | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                               | `RestaurantMenuChangedEvent` |
-| `placeOrderDecider`           | `PlaceOrderCommand`           | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent` | `RestaurantOrderPlacedEvent` |
-| `markOrderAsPreparedDecider`  | `MarkOrderAsPreparedCommand`  | `RestaurantOrderPlacedEvent`, `OrderPreparedEvent`                                   | `OrderPreparedEvent`         |
+| Decider                         | Command                         | Reads                                                                                | Produces                     |
+| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                             | `RestaurantCreatedEvent`     |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                               | `RestaurantMenuChangedEvent` |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent` | `RestaurantOrderPlacedEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`                                       | `OrderPaidEvent`             |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaymentFailedEvent`                              | `OrderPaymentFailedEvent`    |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                 | `OrderPreparedEvent`         |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
@@ -95,14 +97,21 @@ changeRestaurantMenu   → [("restaurantId:<id>", "RestaurantCreatedEvent"),
 placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent"),
                           ("orderId:<id>",      "RestaurantOrderPlacedEvent")]
+markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "OrderPaidEvent")]
+markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "OrderPaymentFailedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]
 ```
 
 Notice how `placeOrder` spans two entity IDs (`restaurantId` and `orderId`) to
 validate menu items against the restaurant while checking order uniqueness — a
 cross-entity consistency boundary that would require coordination in the
-aggregate pattern but is just a wider tuple query here.
+aggregate pattern but is just a wider tuple query here. Similarly,
+`markOrderAsPrepared` reads `OrderPaidEvent` to enforce the invariant that only
+paid orders can be prepared.
 
 Each tuple `("tag", "eventType")` maps to a PostgreSQL tag-based query via
 `dcb.select_events_by_tags`, so the repository fetches only the matching events
@@ -212,19 +221,23 @@ orchestrating complex flows — common patterns include **Sagas** and **Process
 Managers**, where a long-running process coordinates multiple commands, reacts
 to external signals, and handles compensating actions on failure.
 
-![Workflow](workflow.png)
+![Workflow](workflow1.png)
 
-This demo includes a `PaymentWorkflow` that orchestrates the full
+This demo includes a `PaymentWorkflow` that orchestrates the
 order-to-payment lifecycle:
 
 1. **Place Order** — calls the `placeOrderHandler` to persist the order via
    event sourcing
 2. **Await Payment** — pauses with `step.waitForEvent` until a payment
    confirmation (or rejection) arrives from a dummy payment gateway
-3. **Process Payment** — validates the payment result; fails the workflow on
-   declined payments
-4. **Mark Order Prepared** — on successful payment, calls
-   `markOrderAsPreparedHandler` to complete the order
+3. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
+   to record the payment in the event store
+4. **Mark Order Payment Failed** — on declined payment, calls
+   `markOrderPaymentFailedHandler` to record the failure
+
+Preparation is a separate concern — only the Kitchen page can mark a paid order
+as prepared, enforced by the `markOrderAsPreparedDecider` which throws
+`OrderNotPaidError` if the order hasn't been paid.
 
 The workflow uses `waitForEvent` with a matching event type
 (`payment-received`), and the UI sends the event via `instance.sendEvent` —
@@ -236,91 +249,49 @@ simulating what an external payment gateway webhook would do in production.
 import { WorkflowEntrypoint, type WorkflowStep, type WorkflowEvent } from 'cloudflare:workers';
 import { withDb } from '@/infrastructure/db';
 import { placeOrderHandler } from '@/application/command-handlers/placeOrder';
-import { markOrderAsPreparedHandler } from '@/application/command-handlers/markOrderAsPrepared';
+import { markOrderPaidHandler } from '@/application/command-handlers/markOrderPaid';
+import { markOrderPaymentFailedHandler } from '@/application/command-handlers/markOrderPaymentFailed';
 import { restaurantId, orderId, menuItemId } from '@/domain/api';
-
-// ─── Workflow Payload Types ─────────────────────────────────────────
-
-export type OrderWorkflowParams = {
-	restaurantId: string;
-	orderId: string;
-	menuItems: { menuItemId: string; name: string; price: string }[];
-};
-
-export type PaymentEvent = {
-	transactionId: string;
-	amount: string;
-	status: 'success' | 'failed';
-};
-
-// ─── Payment Workflow ───────────────────────────────────────────────
 
 export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 	async run(event: WorkflowEvent<OrderWorkflowParams>, step: WorkflowStep) {
 		const { restaurantId: rid, orderId: oid, menuItems } = event.payload;
 
-		// Step 1: Place the order via the domain command handler
-		const orderResult = await step.do(
-			'place-order',
-			{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
-			async () => {
-				return withDb(this.env, async (sql) => {
-					const handler = placeOrderHandler(sql);
-					await handler.handle({
-						kind: 'PlaceOrderCommand',
-						restaurantId: restaurantId(rid),
-						orderId: orderId(oid),
-						menuItems: menuItems.map((item) => ({
-							menuItemId: menuItemId(item.menuItemId),
-							name: item.name,
-							price: item.price,
-						})),
-					});
-					return { orderId: oid, restaurantId: rid, status: 'placed' };
-				});
-			},
-		);
+		// Step 1: Place the order
+		const orderResult = await step.do('place-order', { ... }, async () => {
+			return withDb(this.env, async (sql) => {
+				const handler = placeOrderHandler(sql);
+				await handler.handle({ kind: 'PlaceOrderCommand', ... });
+				return { orderId: oid, restaurantId: rid, status: 'placed' };
+			});
+		});
 
-		// Step 2: Wait for payment confirmation from the dummy payment gateway
+		// Step 2: Wait for payment confirmation
 		const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
 			type: 'payment-received',
 			timeout: '1 hour',
 		});
 
-		// Step 3: Process payment result
-		const paymentResult = await step.do('process-payment', async () => {
-			if (paymentEvent.payload.status !== 'success') {
-				throw new Error(`Payment failed — transaction ${paymentEvent.payload.transactionId}`);
-			}
-			return {
-				transactionId: paymentEvent.payload.transactionId,
-				amount: paymentEvent.payload.amount,
-				status: 'confirmed',
-			};
-		});
-
-		// Step 4: Mark order as prepared (simulating kitchen auto-confirm after payment)
-		await step.do(
-			'mark-order-prepared',
-			{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
-			async () => {
+		// Step 3: Mark order as paid or payment failed
+		if (paymentEvent.payload.status === 'success') {
+			await step.do('mark-order-paid', { ... }, async () => {
 				return withDb(this.env, async (sql) => {
-					const handler = markOrderAsPreparedHandler(sql);
-					await handler.handle({
-						kind: 'MarkOrderAsPreparedCommand',
-						orderId: orderId(oid),
-					});
-					return { orderId: oid, status: 'prepared' };
+					const handler = markOrderPaidHandler(sql);
+					await handler.handle({ kind: 'MarkOrderPaidCommand', orderId: orderId(oid) });
+					return { orderId: oid, status: 'paid' };
 				});
-			},
-		);
-
-		return {
-			orderId: orderResult.orderId,
-			restaurantId: orderResult.restaurantId,
-			payment: paymentResult,
-			finalStatus: 'prepared',
-		};
+			});
+			return { ...orderResult, finalStatus: 'paid' };
+		} else {
+			await step.do('mark-order-payment-failed', { ... }, async () => {
+				return withDb(this.env, async (sql) => {
+					const handler = markOrderPaymentFailedHandler(sql);
+					await handler.handle({ kind: 'MarkOrderPaymentFailedCommand', orderId: orderId(oid), reason: '...' });
+					return { orderId: oid, status: 'payment_failed' };
+				});
+			});
+			return { ...orderResult, finalStatus: 'payment_failed' };
+		}
 	}
 }
 ```
@@ -344,11 +315,12 @@ because they cannot atomically commit both your side effect and the step
 completion together.
 
 In this demo, the DCB event store provides a natural solution. The
-`placeOrderDecider` and `markOrderAsPreparedDecider` check the event stream
-before deciding: if the command was already handled (the event already exists),
-the decider returns an empty array — no new events, no error. This makes
-retries a silent no-op at the domain level, and the workflow step completes
-successfully on the second attempt.
+`placeOrderDecider`, `markOrderPaidDecider`, and
+`markOrderPaymentFailedDecider` check the event stream before deciding: if the
+command was already handled (the event already exists), the decider returns an
+empty array — no new events, no error. This makes retries a silent no-op at the
+domain level, and the workflow step completes successfully on the second
+attempt.
 
 ## Project Structure
 
@@ -376,9 +348,8 @@ src/
 │   ├── __root.tsx            # Root layout with sidebar navigation
 │   ├── index.tsx             # Home page
 │   ├── restaurant.tsx        # Restaurant management (create, change menu)
-│   ├── order.tsx             # Order management (place order, track status)
-│   ├── kitchen.tsx           # Kitchen dashboard (view orders, mark prepared)
-│   ├── workflow.tsx          # Order + Payment workflow (Cloudflare Workflows)
+│   ├── order-workflow.tsx   # Order + Payment workflow (place order, pay, track)
+│   ├── kitchen.tsx          # Kitchen dashboard (mark paid orders as prepared)
 │   └── api/                  # REST API server routes
 ├── router.tsx                # Router factory
 ├── server.ts                 # Cloudflare Worker entrypoint

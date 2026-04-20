@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
 import { useState } from 'react';
-import { Home, Menu, X, Play, UtensilsCrossed, ShoppingCart, ChefHat } from 'lucide-react';
+import { Home, Menu, X, Play, UtensilsCrossed, ChefHat } from 'lucide-react';
 
 export default function Header() {
 	const [isOpen, setIsOpen] = useState(false);
@@ -68,7 +68,7 @@ export default function Header() {
 						<span className="font-medium">Restaurant</span>
 					</Link>
 					<Link
-						to="/order"
+						to="/order-workflow"
 						onClick={() => setIsOpen(false)}
 						className="mb-2 flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-gray-800"
 						activeProps={{
@@ -76,8 +76,8 @@ export default function Header() {
 								'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
 						}}
 					>
-						<ShoppingCart size={20} />
-						<span className="font-medium">Order</span>
+						<Play size={20} />
+						<span className="font-medium">Order Workflow</span>
 					</Link>
 					<Link
 						to="/kitchen"
@@ -90,20 +90,6 @@ export default function Header() {
 					>
 						<ChefHat size={20} />
 						<span className="font-medium">Kitchen</span>
-					</Link>
-
-					{/* Demo Links */}
-					<Link
-						to="/workflow"
-						onClick={() => setIsOpen(false)}
-						className="mb-2 flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-gray-800"
-						activeProps={{
-							className:
-								'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
-						}}
-					>
-						<Play size={20} />
-						<span className="font-medium">Workflow</span>
 					</Link>
 				</nav>
 			</aside>

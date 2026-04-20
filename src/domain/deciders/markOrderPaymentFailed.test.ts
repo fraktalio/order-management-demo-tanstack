@@ -1,0 +1,30 @@
+import { describe, it } from 'vitest';
+import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
+import { markOrderPaymentFailedDecider } from '../deciders/markOrderPaymentFailed.ts';
+import { OrderNotFoundError } from '../api.ts';
+import { oId, orderPlaced, orderPaymentFailed } from '../fixtures.ts';
+
+describe('markOrderPaymentFailedDecider', () => {
+	const spec = DeciderSpecification.for(markOrderPaymentFailedDecider);
+
+	it('marks order payment as failed', () => {
+		spec
+			.given([orderPlaced])
+			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
+			.then([orderPaymentFailed]);
+	});
+
+	it('throws when order does not exist', () => {
+		spec
+			.given([])
+			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
+			.thenThrows((e: Error) => e instanceof OrderNotFoundError);
+	});
+
+	it('ignores duplicate failure (idempotent)', () => {
+		spec
+			.given([orderPlaced, orderPaymentFailed])
+			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
+			.then([]); // No new events — already failed
+	});
+});

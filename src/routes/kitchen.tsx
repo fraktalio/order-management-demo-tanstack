@@ -19,7 +19,7 @@ const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 		// Load all order-related events from the event store
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
 			`SELECT e.data FROM dcb.events e
-			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPreparedEvent')
+			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
 			 ORDER BY e.id ASC`,
 		);
 
@@ -124,7 +124,7 @@ function KitchenPage() {
 		}
 	};
 
-	const createdOrders = orders.filter((o) => o.status === 'CREATED');
+	const paidOrders = orders.filter((o) => o.status === 'PAID');
 	const preparedOrders = orders.filter((o) => o.status === 'PREPARED');
 
 	return (
@@ -170,48 +170,27 @@ function KitchenPage() {
 
 				{status.type === 'error' && <p className="mb-4 text-sm text-red-400">{status.message}</p>}
 
-				{/* Created Orders */}
+				{/* Paid Orders — Ready for Preparation */}
 				<section className="mb-8">
 					<h2 className="mb-4 text-xl font-semibold">
-						Orders Awaiting Preparation
-						{createdOrders.length > 0 && (
-							<span className="ml-2 inline-block rounded-full bg-amber-900 px-2 py-0.5 text-xs text-amber-200">
-								{createdOrders.length}
+						Paid — Ready for Preparation
+						{paidOrders.length > 0 && (
+							<span className="ml-2 inline-block rounded-full bg-cyan-900 px-2 py-0.5 text-xs text-cyan-200">
+								{paidOrders.length}
 							</span>
 						)}
 					</h2>
-					{createdOrders.length === 0 ? (
-						<p className="text-gray-500">No orders awaiting preparation</p>
+					{paidOrders.length === 0 ? (
+						<p className="text-gray-500">No paid orders awaiting preparation</p>
 					) : (
 						<div className="space-y-3">
-							{createdOrders.map((order) => (
+							{paidOrders.map((order) => (
 								<div
 									key={order.orderId}
-									className="rounded-lg border border-slate-700 bg-slate-800/50 p-4"
+									className="rounded-lg border border-cyan-800 bg-cyan-900/20 p-4"
 								>
 									<div className="flex items-start justify-between gap-4">
-										<dl className="flex-1 space-y-1 text-sm">
-											<div>
-												<dt className="inline font-medium text-gray-300">Order ID: </dt>
-												<dd className="inline text-gray-400">{order.orderId}</dd>
-											</div>
-											<div>
-												<dt className="inline font-medium text-gray-300">Restaurant ID: </dt>
-												<dd className="inline text-gray-400">{order.restaurantId}</dd>
-											</div>
-											<div>
-												<dt className="font-medium text-gray-300">Menu Items</dt>
-												<dd>
-													<ul className="list-disc pl-5 text-gray-400">
-														{order.menuItems.map((item) => (
-															<li key={item.menuItemId}>
-																{item.name} — {item.price}
-															</li>
-														))}
-													</ul>
-												</dd>
-											</div>
-										</dl>
+										<OrderCard order={order} />
 										<button
 											onClick={() => handleMarkAsPrepared(order)}
 											disabled={markingId === order.orderId}
@@ -245,28 +224,7 @@ function KitchenPage() {
 									key={order.orderId}
 									className="rounded-lg border border-green-800 bg-green-900/20 p-4"
 								>
-									<dl className="space-y-1 text-sm">
-										<div>
-											<dt className="inline font-medium text-gray-300">Order ID: </dt>
-											<dd className="inline text-gray-400">{order.orderId}</dd>
-										</div>
-										<div>
-											<dt className="inline font-medium text-gray-300">Restaurant ID: </dt>
-											<dd className="inline text-gray-400">{order.restaurantId}</dd>
-										</div>
-										<div>
-											<dt className="font-medium text-gray-300">Menu Items</dt>
-											<dd>
-												<ul className="list-disc pl-5 text-gray-400">
-													{order.menuItems.map((item) => (
-														<li key={item.menuItemId}>
-															{item.name} — {item.price}
-														</li>
-													))}
-												</ul>
-											</dd>
-										</div>
-									</dl>
+									<OrderCard order={order} />
 								</div>
 							))}
 						</div>
@@ -274,5 +232,32 @@ function KitchenPage() {
 				</section>
 			</div>
 		</div>
+	);
+}
+
+function OrderCard({ order }: { order: OrderViewState }) {
+	return (
+		<dl className="flex-1 space-y-1 text-sm">
+			<div>
+				<dt className="inline font-medium text-gray-300">Order ID: </dt>
+				<dd className="inline text-gray-400">{order.orderId}</dd>
+			</div>
+			<div>
+				<dt className="inline font-medium text-gray-300">Restaurant ID: </dt>
+				<dd className="inline text-gray-400">{order.restaurantId}</dd>
+			</div>
+			<div>
+				<dt className="font-medium text-gray-300">Menu Items</dt>
+				<dd>
+					<ul className="list-disc pl-5 text-gray-400">
+						{order.menuItems.map((item) => (
+							<li key={item.menuItemId}>
+								{item.name} — {item.price}
+							</li>
+						))}
+					</ul>
+				</dd>
+			</div>
+		</dl>
 	);
 }

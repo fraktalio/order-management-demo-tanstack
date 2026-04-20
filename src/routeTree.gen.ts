@@ -9,9 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as RestaurantRouteImport } from './routes/restaurant'
-import { Route as OrderRouteImport } from './routes/order'
+import { Route as OrderWorkflowRouteImport } from './routes/order-workflow'
 import { Route as KitchenRouteImport } from './routes/kitchen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRestaurantsRouteImport } from './routes/api/restaurants'
@@ -19,19 +18,14 @@ import { Route as ApiRestaurantsRestaurantIdOrdersRouteImport } from './routes/a
 import { Route as ApiRestaurantsRestaurantIdMenuRouteImport } from './routes/api/restaurants.$restaurantId.menu'
 import { Route as ApiOrdersOrderIdPrepareRouteImport } from './routes/api/orders.$orderId.prepare'
 
-const WorkflowRoute = WorkflowRouteImport.update({
-  id: '/workflow',
-  path: '/workflow',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RestaurantRoute = RestaurantRouteImport.update({
   id: '/restaurant',
   path: '/restaurant',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrderRoute = OrderRouteImport.update({
-  id: '/order',
-  path: '/order',
+const OrderWorkflowRoute = OrderWorkflowRouteImport.update({
+  id: '/order-workflow',
+  path: '/order-workflow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KitchenRoute = KitchenRouteImport.update({
@@ -70,9 +64,8 @@ const ApiOrdersOrderIdPrepareRoute = ApiOrdersOrderIdPrepareRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/kitchen': typeof KitchenRoute
-  '/order': typeof OrderRoute
+  '/order-workflow': typeof OrderWorkflowRoute
   '/restaurant': typeof RestaurantRoute
-  '/workflow': typeof WorkflowRoute
   '/api/restaurants': typeof ApiRestaurantsRouteWithChildren
   '/api/orders/$orderId/prepare': typeof ApiOrdersOrderIdPrepareRoute
   '/api/restaurants/$restaurantId/menu': typeof ApiRestaurantsRestaurantIdMenuRoute
@@ -81,9 +74,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/kitchen': typeof KitchenRoute
-  '/order': typeof OrderRoute
+  '/order-workflow': typeof OrderWorkflowRoute
   '/restaurant': typeof RestaurantRoute
-  '/workflow': typeof WorkflowRoute
   '/api/restaurants': typeof ApiRestaurantsRouteWithChildren
   '/api/orders/$orderId/prepare': typeof ApiOrdersOrderIdPrepareRoute
   '/api/restaurants/$restaurantId/menu': typeof ApiRestaurantsRestaurantIdMenuRoute
@@ -93,9 +85,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/kitchen': typeof KitchenRoute
-  '/order': typeof OrderRoute
+  '/order-workflow': typeof OrderWorkflowRoute
   '/restaurant': typeof RestaurantRoute
-  '/workflow': typeof WorkflowRoute
   '/api/restaurants': typeof ApiRestaurantsRouteWithChildren
   '/api/orders/$orderId/prepare': typeof ApiOrdersOrderIdPrepareRoute
   '/api/restaurants/$restaurantId/menu': typeof ApiRestaurantsRestaurantIdMenuRoute
@@ -106,9 +97,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/kitchen'
-    | '/order'
+    | '/order-workflow'
     | '/restaurant'
-    | '/workflow'
     | '/api/restaurants'
     | '/api/orders/$orderId/prepare'
     | '/api/restaurants/$restaurantId/menu'
@@ -117,9 +107,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/kitchen'
-    | '/order'
+    | '/order-workflow'
     | '/restaurant'
-    | '/workflow'
     | '/api/restaurants'
     | '/api/orders/$orderId/prepare'
     | '/api/restaurants/$restaurantId/menu'
@@ -128,9 +117,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/kitchen'
-    | '/order'
+    | '/order-workflow'
     | '/restaurant'
-    | '/workflow'
     | '/api/restaurants'
     | '/api/orders/$orderId/prepare'
     | '/api/restaurants/$restaurantId/menu'
@@ -140,22 +128,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   KitchenRoute: typeof KitchenRoute
-  OrderRoute: typeof OrderRoute
+  OrderWorkflowRoute: typeof OrderWorkflowRoute
   RestaurantRoute: typeof RestaurantRoute
-  WorkflowRoute: typeof WorkflowRoute
   ApiRestaurantsRoute: typeof ApiRestaurantsRouteWithChildren
   ApiOrdersOrderIdPrepareRoute: typeof ApiOrdersOrderIdPrepareRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflow': {
-      id: '/workflow'
-      path: '/workflow'
-      fullPath: '/workflow'
-      preLoaderRoute: typeof WorkflowRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant': {
       id: '/restaurant'
       path: '/restaurant'
@@ -163,11 +143,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/order': {
-      id: '/order'
-      path: '/order'
-      fullPath: '/order'
-      preLoaderRoute: typeof OrderRouteImport
+    '/order-workflow': {
+      id: '/order-workflow'
+      path: '/order-workflow'
+      fullPath: '/order-workflow'
+      preLoaderRoute: typeof OrderWorkflowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kitchen': {
@@ -232,9 +212,8 @@ const ApiRestaurantsRouteWithChildren = ApiRestaurantsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KitchenRoute: KitchenRoute,
-  OrderRoute: OrderRoute,
+  OrderWorkflowRoute: OrderWorkflowRoute,
   RestaurantRoute: RestaurantRoute,
-  WorkflowRoute: WorkflowRoute,
   ApiRestaurantsRoute: ApiRestaurantsRouteWithChildren,
   ApiOrdersOrderIdPrepareRoute: ApiOrdersOrderIdPrepareRoute,
 }
