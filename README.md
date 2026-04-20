@@ -252,8 +252,6 @@ The workflow steps:
 4. **Mark Order Payment Failed** — on declined payment, calls
    `markOrderPaymentFailedHandler` to record the failure
 
-![Workflow](workflow.png)
-
 Preparation is a separate concern — only the Kitchen page can mark a paid order
 as prepared, enforced by the `markOrderAsPreparedDecider` which throws
 `OrderNotPaidError` if the order hasn't been paid.
