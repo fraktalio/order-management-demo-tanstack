@@ -2,20 +2,23 @@ import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderPaymentFailedCommand,
 	type OrderId,
+	OrderAlreadyPaidError,
 	OrderNotFoundError,
+	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
 type MarkOrderPaymentFailedState = {
 	readonly orderId: OrderId | null;
+	readonly paid: boolean;
 	readonly paymentFailed: boolean;
 };
 
 export const markOrderPaymentFailedDecider: DcbDecider<
 	MarkOrderPaymentFailedCommand,
 	MarkOrderPaymentFailedState,
-	RestaurantOrderPlacedEvent | OrderPaymentFailedEvent,
+	RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPaymentFailedEvent,
 	OrderPaymentFailedEvent
 > = new DcbDecider(
 	(command, currentState) => {
@@ -26,6 +29,9 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 				}
 				if (currentState.paymentFailed) {
 					return []; // Idempotent: duplicate command is a no-op
+				}
+				if (currentState.paid) {
+					throw new OrderAlreadyPaidError(command.orderId);
 				}
 				return [
 					{
@@ -44,12 +50,14 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 	(currentState, event) => {
 		switch (event?.kind) {
 			case 'RestaurantOrderPlacedEvent':
-				return { orderId: event.orderId, paymentFailed: false };
+				return { orderId: event.orderId, paid: false, paymentFailed: false };
+			case 'OrderPaidEvent':
+				return { ...currentState, paid: true };
 			case 'OrderPaymentFailedEvent':
 				return { ...currentState, paymentFailed: true };
 			default:
 				return currentState;
 		}
 	},
-	{ orderId: null, paymentFailed: false } as MarkOrderPaymentFailedState,
+	{ orderId: null, paid: false, paymentFailed: false } as MarkOrderPaymentFailedState,
 );

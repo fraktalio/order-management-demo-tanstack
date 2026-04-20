@@ -1,8 +1,8 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderPaymentFailedDecider } from '../deciders/markOrderPaymentFailed.ts';
-import { OrderNotFoundError } from '../api.ts';
-import { oId, orderPlaced, orderPaymentFailed } from '../fixtures.ts';
+import { OrderNotFoundError, OrderAlreadyPaidError } from '../api.ts';
+import { oId, orderPlaced, orderPaid, orderPaymentFailed } from '../fixtures.ts';
 
 describe('markOrderPaymentFailedDecider', () => {
 	const spec = DeciderSpecification.for(markOrderPaymentFailedDecider);
@@ -25,6 +25,13 @@ describe('markOrderPaymentFailedDecider', () => {
 		spec
 			.given([orderPlaced, orderPaymentFailed])
 			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
-			.then([]); // No new events — already failed
+			.then([]);
+	});
+
+	it('throws when order is already paid', () => {
+		spec
+			.given([orderPlaced, orderPaid])
+			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
+			.thenThrows((e: Error) => e instanceof OrderAlreadyPaidError);
 	});
 });

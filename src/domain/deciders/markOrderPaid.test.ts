@@ -25,6 +25,6 @@ describe('markOrderPaidDecider', () => {
 		spec
 			.given([orderPlaced, orderPaid])
 			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
-			.then([]); // No new events — already paid
+			.then([]);
 	});
 });

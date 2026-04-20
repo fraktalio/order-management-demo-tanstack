@@ -55,7 +55,7 @@ matching exhaustive and the entire pipeline type-safe.
 | `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                               | `RestaurantMenuChangedEvent` |
 | `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent` | `RestaurantOrderPlacedEvent` |
 | `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`                                       | `OrderPaidEvent`             |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaymentFailedEvent`                              | `OrderPaymentFailedEvent`    |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`            | `OrderPaymentFailedEvent`    |
 | `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                 | `OrderPreparedEvent`         |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
@@ -100,6 +100,7 @@ placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
 markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent")]
 markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPaymentFailedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
