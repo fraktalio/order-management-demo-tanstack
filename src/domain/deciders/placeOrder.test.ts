@@ -7,15 +7,19 @@ import {
 	oId,
 	menu,
 	newMenu,
+	freeMenu,
 	restaurantCreated,
+	freeRestaurantCreated,
 	menuChanged,
 	orderPlaced,
+	orderPaid,
+	paymentInitiated,
 } from '../fixtures.ts';
 
 describe('placeOrderDecider', () => {
 	const spec = DeciderSpecification.for(placeOrderDecider);
 
-	it('places an order when restaurant exists and items are on menu', () => {
+	it('places an order and initiates payment when total > 0', () => {
 		spec
 			.given([restaurantCreated])
 			.when({
@@ -24,7 +28,29 @@ describe('placeOrderDecider', () => {
 				orderId: oId,
 				menuItems: menu.menuItems,
 			})
-			.then([orderPlaced]);
+			.then([orderPlaced, paymentInitiated]);
+	});
+
+	it('places an order and marks as paid when total is 0 (free product)', () => {
+		spec
+			.given([freeRestaurantCreated])
+			.when({
+				kind: 'PlaceOrderCommand',
+				restaurantId: rId,
+				orderId: oId,
+				menuItems: freeMenu.menuItems,
+			})
+			.then([
+				{
+					kind: 'RestaurantOrderPlacedEvent',
+					restaurantId: rId,
+					orderId: oId,
+					menuItems: freeMenu.menuItems,
+					final: false,
+					tagFields: ['restaurantId', 'orderId'],
+				},
+				orderPaid,
+			]);
 	});
 
 	it('throws when restaurant does not exist', () => {
@@ -80,6 +106,13 @@ describe('placeOrderDecider', () => {
 					menuItems: newMenu.menuItems,
 					final: false,
 					tagFields: ['restaurantId', 'orderId'],
+				},
+				{
+					kind: 'PaymentInitiatedEvent',
+					orderId: oId,
+					amount: '15.00',
+					final: false,
+					tagFields: ['orderId'],
 				},
 			]);
 	});

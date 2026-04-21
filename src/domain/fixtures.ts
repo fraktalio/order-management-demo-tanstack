@@ -2,6 +2,7 @@ import {
 	type RestaurantCreatedEvent,
 	type RestaurantMenuChangedEvent,
 	type RestaurantOrderPlacedEvent,
+	type PaymentInitiatedEvent,
 	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
 	type OrderPreparedEvent,
@@ -28,6 +29,12 @@ export const newMenu = {
 	menuItems: [{ menuItemId: menuItemId('m2'), name: 'Pizza', price: '15.00' }],
 };
 
+export const freeMenu = {
+	menuId: restaurantMenuId('rm3'),
+	cuisine: 'GENERAL' as const,
+	menuItems: [{ menuItemId: menuItemId('m3'), name: 'Free Sample', price: '0.00' }],
+};
+
 export const restaurantCreated: RestaurantCreatedEvent = {
 	kind: 'RestaurantCreatedEvent',
 	restaurantId: rId,
@@ -50,6 +57,32 @@ export const orderPlaced: RestaurantOrderPlacedEvent = {
 	restaurantId: rId,
 	orderId: oId,
 	menuItems: menu.menuItems,
+	final: false,
+	tagFields: ['restaurantId', 'orderId'],
+};
+
+export const paymentInitiated: PaymentInitiatedEvent = {
+	kind: 'PaymentInitiatedEvent',
+	orderId: oId,
+	amount: '12.00',
+	final: false,
+	tagFields: ['orderId'],
+};
+
+export const freeRestaurantCreated: RestaurantCreatedEvent = {
+	kind: 'RestaurantCreatedEvent',
+	restaurantId: rId,
+	name: 'Free Restaurant',
+	menu: freeMenu,
+	final: false,
+	tagFields: ['restaurantId'],
+};
+
+export const freeOrderPlaced: RestaurantOrderPlacedEvent = {
+	kind: 'RestaurantOrderPlacedEvent',
+	restaurantId: rId,
+	orderId: oId,
+	menuItems: freeMenu.menuItems,
 	final: false,
 	tagFields: ['restaurantId', 'orderId'],
 };

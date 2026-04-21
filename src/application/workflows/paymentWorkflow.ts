@@ -32,7 +32,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 			async () => {
 				return withDb(this.env, async (sql) => {
 					const handler = placeOrderHandler(sql);
-					await handler.handle({
+					const events = await handler.handle({
 						kind: 'PlaceOrderCommand',
 						restaurantId: restaurantId(rid),
 						orderId: orderId(oid),
@@ -42,70 +42,87 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 							price: item.price,
 						})),
 					});
-					return { orderId: oid, restaurantId: rid, status: 'placed' };
+					const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
+					return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
 				});
 			},
 		);
 
-		// Step 2: Wait for payment confirmation from the payment gateway
-		const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
-			type: 'payment-received',
-			timeout: '1 hour',
-		});
+		if (orderResult.paymentRequired) {
+			// Step 2a: Wait for payment confirmation from the payment gateway
+			const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
+				type: 'payment-received',
+				timeout: '1 hour',
+			});
 
-		// Step 3: Mark order as paid or payment failed
-		if (paymentEvent.payload.status === 'success') {
-			await step.do(
-				'mark-order-paid',
-				{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
-				async () => {
-					return withDb(this.env, async (sql) => {
-						const handler = markOrderPaidHandler(sql);
-						await handler.handle({
-							kind: 'MarkOrderPaidCommand',
-							orderId: orderId(oid),
+			// Step 3a: Mark order as paid or payment failed based on gateway response
+			if (paymentEvent.payload.status === 'success') {
+				await step.do(
+					'mark-order-paid',
+					{
+						retries: { limit: 3, delay: '1 second', backoff: 'exponential' },
+						timeout: '15 seconds',
+					},
+					async () => {
+						return withDb(this.env, async (sql) => {
+							const handler = markOrderPaidHandler(sql);
+							await handler.handle({
+								kind: 'MarkOrderPaidCommand',
+								orderId: orderId(oid),
+							});
+							return { orderId: oid, status: 'paid' };
 						});
-						return { orderId: oid, status: 'paid' };
-					});
-				},
-			);
+					},
+				);
 
-			return {
-				orderId: orderResult.orderId,
-				restaurantId: orderResult.restaurantId,
-				payment: {
-					transactionId: paymentEvent.payload.transactionId,
-					amount: paymentEvent.payload.amount,
-					status: 'confirmed',
-				},
-				finalStatus: 'paid',
-			};
+				return {
+					orderId: orderResult.orderId,
+					restaurantId: orderResult.restaurantId,
+					payment: {
+						transactionId: paymentEvent.payload.transactionId,
+						amount: paymentEvent.payload.amount,
+						status: 'confirmed',
+					},
+					finalStatus: 'paid',
+				};
+			} else {
+				await step.do(
+					'mark-order-payment-failed',
+					{
+						retries: { limit: 3, delay: '1 second', backoff: 'exponential' },
+						timeout: '15 seconds',
+					},
+					async () => {
+						return withDb(this.env, async (sql) => {
+							const handler = markOrderPaymentFailedHandler(sql);
+							await handler.handle({
+								kind: 'MarkOrderPaymentFailedCommand',
+								orderId: orderId(oid),
+								reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
+							});
+							return { orderId: oid, status: 'payment_failed' };
+						});
+					},
+				);
+
+				return {
+					orderId: orderResult.orderId,
+					restaurantId: orderResult.restaurantId,
+					payment: {
+						transactionId: paymentEvent.payload.transactionId,
+						amount: paymentEvent.payload.amount,
+						status: 'failed',
+					},
+					finalStatus: 'payment_failed',
+				};
+			}
 		} else {
-			await step.do(
-				'mark-order-payment-failed',
-				{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
-				async () => {
-					return withDb(this.env, async (sql) => {
-						const handler = markOrderPaymentFailedHandler(sql);
-						await handler.handle({
-							kind: 'MarkOrderPaymentFailedCommand',
-							orderId: orderId(oid),
-							reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
-						});
-						return { orderId: oid, status: 'payment_failed' };
-					});
-				},
-			);
-
+			// Free order — already marked as paid by PlaceOrderCommand (emitted OrderPaidEvent)
 			return {
 				orderId: orderResult.orderId,
 				restaurantId: orderResult.restaurantId,
-				payment: {
-					transactionId: paymentEvent.payload.transactionId,
-					amount: paymentEvent.payload.amount,
-					status: 'failed',
-				},
-				finalStatus: 'payment_failed',
+				payment: null,
+				finalStatus: 'paid',
 			};
 		}
 	}

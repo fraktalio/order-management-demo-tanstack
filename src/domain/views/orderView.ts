@@ -6,12 +6,14 @@ import type {
 	OrderPaymentFailedEvent,
 	OrderPreparedEvent,
 	OrderStatus,
+	PaymentInitiatedEvent,
 	RestaurantId,
 	RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
 export type OrderEvent =
 	| RestaurantOrderPlacedEvent
+	| PaymentInitiatedEvent
 	| OrderPaidEvent
 	| OrderPaymentFailedEvent
 	| OrderPreparedEvent;
@@ -33,6 +35,8 @@ export const orderView: Projection<OrderViewState | null, OrderEvent> = new Proj
 					menuItems: event.menuItems,
 					status: 'CREATED',
 				};
+			case 'PaymentInitiatedEvent':
+				return currentState; // Status stays CREATED — payment is just initiated
 			case 'OrderPaidEvent':
 				return currentState !== null ? { ...currentState, status: 'PAID' } : currentState;
 			case 'OrderPaymentFailedEvent':

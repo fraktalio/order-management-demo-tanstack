@@ -1,6 +1,8 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	MenuItemsNotAvailableError,
+	type OrderPaidEvent,
+	type PaymentInitiatedEvent,
 	type PlaceOrderCommand,
 	type RestaurantCreatedEvent,
 	type RestaurantId,
@@ -19,10 +21,17 @@ type PlaceOrderState = {
 export const placeOrderDecider: DcbDecider<
 	PlaceOrderCommand,
 	PlaceOrderState,
-	RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent,
-	RestaurantOrderPlacedEvent
+	| RestaurantCreatedEvent
+	| RestaurantMenuChangedEvent
+	| RestaurantOrderPlacedEvent
+	| PaymentInitiatedEvent
+	| OrderPaidEvent,
+	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent
 > = new DcbDecider(
-	(command, currentState) => {
+	(
+		command,
+		currentState,
+	): readonly (RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent)[] => {
 		switch (command?.kind) {
 			case 'PlaceOrderCommand': {
 				if (currentState.restaurantId === null) {
@@ -41,14 +50,34 @@ export const placeOrderDecider: DcbDecider<
 				if (unavailableItems.length > 0) {
 					throw new MenuItemsNotAvailableError(unavailableItems);
 				}
+				const total = command.menuItems.reduce((sum, item) => sum + parseFloat(item.price), 0);
+				const orderPlacedEvent: RestaurantOrderPlacedEvent = {
+					kind: 'RestaurantOrderPlacedEvent',
+					restaurantId: command.restaurantId,
+					orderId: command.orderId,
+					menuItems: command.menuItems,
+					final: false,
+					tagFields: ['restaurantId', 'orderId'],
+				};
+				if (total > 0) {
+					return [
+						orderPlacedEvent,
+						{
+							kind: 'PaymentInitiatedEvent',
+							orderId: command.orderId,
+							amount: total.toFixed(2),
+							final: false,
+							tagFields: ['orderId'],
+						},
+					];
+				}
 				return [
+					orderPlacedEvent,
 					{
-						kind: 'RestaurantOrderPlacedEvent',
-						restaurantId: command.restaurantId,
+						kind: 'OrderPaidEvent',
 						orderId: command.orderId,
-						menuItems: command.menuItems,
 						final: false,
-						tagFields: ['restaurantId', 'orderId'],
+						tagFields: ['orderId'],
 					},
 				];
 			}
@@ -64,6 +93,10 @@ export const placeOrderDecider: DcbDecider<
 				return { ...currentState, menu: event.menu };
 			case 'RestaurantOrderPlacedEvent':
 				return { ...currentState, orderPlaced: true };
+			case 'PaymentInitiatedEvent':
+				return currentState;
+			case 'OrderPaidEvent':
+				return currentState;
 			default:
 				return currentState;
 		}

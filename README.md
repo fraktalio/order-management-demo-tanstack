@@ -49,18 +49,21 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                         | Command                         | Reads                                                                                           | Produces                     |
-| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------- |
-| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                        | `RestaurantCreatedEvent`     |
-| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                          | `RestaurantMenuChangedEvent` |
-| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`            | `RestaurantOrderPlacedEvent` |
-| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPaidEvent`             |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent` | `OrderPaymentFailedEvent`    |
-| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                            | `OrderPreparedEvent`         |
+| Decider                         | Command                         | Reads                                                                                                                           | Produces                                                                |
+| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                                                        | `RestaurantCreatedEvent`                                                |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                                                          | `RestaurantMenuChangedEvent`                                            |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent`        | `OrderPaidEvent`                                                        |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent`        | `OrderPaymentFailedEvent`                                               |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                                                            | `OrderPreparedEvent`                                                    |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
-the aggregate pattern.
+the aggregate pattern. Additionally, `placeOrderDecider` makes a domain-level
+decision about payment: if the order total is greater than zero, it emits
+`PaymentInitiatedEvent`; if the order is free (total = 0), it emits
+`OrderPaidEvent` directly — no separate payment step needed.
 
 ### Event Repository (PostgreSQL)
 
@@ -96,11 +99,16 @@ changeRestaurantMenu   → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent")]
 placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent"),
-                          ("orderId:<id>",      "RestaurantOrderPlacedEvent")]
+                          ("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "PaymentInitiatedEvent"),
+                          ("orderId:<id>",      "OrderPaidEvent")]
 markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "PaymentInitiatedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
+                          ("orderId:<id>",      "OrderPaymentFailedEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]
 markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "PaymentInitiatedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPaymentFailedEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]
@@ -163,6 +171,13 @@ test('Place Order - Success', () => {
 				menuItems: testMenuItems,
 				final: false,
 				tagFields: ['restaurantId', 'orderId'],
+			},
+			{
+				kind: 'PaymentInitiatedEvent',
+				orderId: orderId('order-1'),
+				amount: '12.00',
+				final: false,
+				tagFields: ['orderId'],
 			},
 		]);
 });
@@ -228,13 +243,15 @@ to external signals, and handles compensating actions on failure.
 
 ![Workflow](workflow1.png)
 
-This demo includes a `PaymentWorkflow` that wraps two independent command
-handlers — `PlaceOrderCommand` and `MarkOrderPaidCommand` (or
-`MarkOrderPaymentFailedCommand`) — into a single durable, multi-step execution.
-Each command handler is a standalone use case with its own decider and sliced
-repository, but the workflow orchestrates them as a cohesive unit with retries,
-persistent state, and the ability to pause mid-flight and wait for an external
-signal.
+This demo includes a `PaymentWorkflow` that orchestrates the order and payment
+lifecycle as a single durable, multi-step execution. The `PlaceOrderCommand`
+itself decides the payment path: if the order total is greater than zero, it
+emits `PaymentInitiatedEvent` and the workflow waits for an external payment
+signal; if the order is free, it emits `OrderPaidEvent` directly and the
+workflow completes immediately. Each command handler is a standalone use case
+with its own decider and sliced repository, but the workflow orchestrates them
+as a cohesive unit with retries, persistent state, and the ability to pause
+mid-flight and wait for an external signal.
 
 The diagram below shows how the workflow spans the two command handlers,
 with the payment gateway event bridging them:
@@ -244,13 +261,16 @@ with the payment gateway event bridging them:
 The workflow steps:
 
 1. **Place Order** — calls `placeOrderHandler` to persist the order via event
-   sourcing
-2. **Await Payment** — pauses with `step.waitForEvent` until a payment
+   sourcing. The decider emits `PaymentInitiatedEvent` (total > 0) or
+   `OrderPaidEvent` (free order)
+2. **If payment required** — pauses with `step.waitForEvent` until a payment
    confirmation (or rejection) arrives from a dummy payment gateway
 3. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
    to record the payment in the event store
 4. **Mark Order Payment Failed** — on declined payment, calls
    `markOrderPaymentFailedHandler` to record the failure
+5. **If free order** — skips the payment gateway entirely and returns
+   immediately (the order is already paid from step 1)
 
 Preparation is a separate concern — only the Kitchen page can mark a paid order
 as prepared, enforced by the `markOrderAsPreparedDecider` which throws
@@ -274,40 +294,34 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 	async run(event: WorkflowEvent<OrderWorkflowParams>, step: WorkflowStep) {
 		const { restaurantId: rid, orderId: oid, menuItems } = event.payload;
 
-		// Step 1: Place the order
+		// Step 1: Place the order — decider decides payment path based on total
 		const orderResult = await step.do('place-order', { ... }, async () => {
 			return withDb(this.env, async (sql) => {
 				const handler = placeOrderHandler(sql);
-				await handler.handle({ kind: 'PlaceOrderCommand', ... });
-				return { orderId: oid, restaurantId: rid, status: 'placed' };
+				const events = await handler.handle({ kind: 'PlaceOrderCommand', ... });
+				const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
+				return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
 			});
 		});
 
-		// Step 2: Wait for payment confirmation
-		const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
-			type: 'payment-received',
-			timeout: '1 hour',
-		});
-
-		// Step 3: Mark order as paid or payment failed
-		if (paymentEvent.payload.status === 'success') {
-			await step.do('mark-order-paid', { ... }, async () => {
-				return withDb(this.env, async (sql) => {
-					const handler = markOrderPaidHandler(sql);
-					await handler.handle({ kind: 'MarkOrderPaidCommand', orderId: orderId(oid) });
-					return { orderId: oid, status: 'paid' };
-				});
+		if (orderResult.paymentRequired) {
+			// Step 2a: Wait for payment confirmation from the payment gateway
+			const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
+				type: 'payment-received',
+				timeout: '1 hour',
 			});
-			return { ...orderResult, finalStatus: 'paid' };
+
+			// Step 3a: Mark order as paid or payment failed
+			if (paymentEvent.payload.status === 'success') {
+				await step.do('mark-order-paid', { ... }, async () => { ... });
+				return { ...orderResult, finalStatus: 'paid' };
+			} else {
+				await step.do('mark-order-payment-failed', { ... }, async () => { ... });
+				return { ...orderResult, finalStatus: 'payment_failed' };
+			}
 		} else {
-			await step.do('mark-order-payment-failed', { ... }, async () => {
-				return withDb(this.env, async (sql) => {
-					const handler = markOrderPaymentFailedHandler(sql);
-					await handler.handle({ kind: 'MarkOrderPaymentFailedCommand', orderId: orderId(oid), reason: '...' });
-					return { orderId: oid, status: 'payment_failed' };
-				});
-			});
-			return { ...orderResult, finalStatus: 'payment_failed' };
+			// Free order — already marked as paid by PlaceOrderCommand (emitted OrderPaidEvent)
+			return { ...orderResult, payment: null, finalStatus: 'paid' };
 		}
 	}
 }
@@ -335,9 +349,10 @@ In this demo, the DCB event store provides a natural solution. The
 `placeOrderDecider`, `markOrderPaidDecider`, and
 `markOrderPaymentFailedDecider` check the event stream before deciding: if the
 command was already handled (the event already exists), the decider returns an
-empty array — no new events, no error. This makes retries a silent no-op at the
-domain level, and the workflow step completes successfully on the second
-attempt.
+empty array — no new events, no error. The `markOrderPaidDecider` and
+`markOrderPaymentFailedDecider` also enforce that `PaymentInitiatedEvent` must
+exist before payment can be marked — preventing invalid state transitions while
+keeping retries a silent no-op at the domain level.
 
 ## Project Structure
 

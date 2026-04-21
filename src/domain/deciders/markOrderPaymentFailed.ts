@@ -1,53 +1,68 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderPaymentFailedCommand,
-	type OrderId,
 	OrderAlreadyPaidError,
 	OrderAlreadyPreparedError,
 	OrderNotFoundError,
 	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
 	type OrderPreparedEvent,
+	type PaymentInitiatedEvent,
+	PaymentNotInitiatedError,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
+type MarkOrderPaymentFailedStatus =
+	| 'NOT_FOUND'
+	| 'PLACED'
+	| 'PAYMENT_INITIATED'
+	| 'PAID'
+	| 'PAYMENT_FAILED'
+	| 'PREPARED';
+
 type MarkOrderPaymentFailedState = {
-	readonly orderId: OrderId | null;
-	readonly paid: boolean;
-	readonly paymentFailed: boolean;
-	readonly prepared: boolean;
+	readonly status: MarkOrderPaymentFailedStatus;
 };
 
 export const markOrderPaymentFailedDecider: DcbDecider<
 	MarkOrderPaymentFailedCommand,
 	MarkOrderPaymentFailedState,
-	RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPaymentFailedEvent | OrderPreparedEvent,
+	| RestaurantOrderPlacedEvent
+	| PaymentInitiatedEvent
+	| OrderPaidEvent
+	| OrderPaymentFailedEvent
+	| OrderPreparedEvent,
 	OrderPaymentFailedEvent
 > = new DcbDecider(
 	(command, currentState) => {
 		switch (command?.kind) {
 			case 'MarkOrderPaymentFailedCommand': {
-				if (currentState.orderId === null) {
-					throw new OrderNotFoundError(command.orderId);
+				switch (currentState.status) {
+					case 'NOT_FOUND':
+						throw new OrderNotFoundError(command.orderId);
+					case 'PLACED':
+						throw new PaymentNotInitiatedError(command.orderId);
+					case 'PAYMENT_INITIATED':
+						return [
+							{
+								kind: 'OrderPaymentFailedEvent',
+								orderId: command.orderId,
+								reason: command.reason,
+								final: false,
+								tagFields: ['orderId'],
+							},
+						];
+					case 'PAID':
+						throw new OrderAlreadyPaidError(command.orderId);
+					case 'PAYMENT_FAILED':
+						return []; // Idempotent: duplicate command is a no-op
+					case 'PREPARED':
+						throw new OrderAlreadyPreparedError(command.orderId);
+					default: {
+						const _exhaustiveCheck: never = currentState.status;
+						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);
+					}
 				}
-				if (currentState.paymentFailed) {
-					return []; // Idempotent: duplicate command is a no-op
-				}
-				if (currentState.prepared) {
-					throw new OrderAlreadyPreparedError(command.orderId);
-				}
-				if (currentState.paid) {
-					throw new OrderAlreadyPaidError(command.orderId);
-				}
-				return [
-					{
-						kind: 'OrderPaymentFailedEvent',
-						orderId: command.orderId,
-						reason: command.reason,
-						final: false,
-						tagFields: ['orderId'],
-					},
-				];
 			}
 			default:
 				return [];
@@ -56,21 +71,18 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 	(currentState, event) => {
 		switch (event?.kind) {
 			case 'RestaurantOrderPlacedEvent':
-				return { orderId: event.orderId, paid: false, paymentFailed: false, prepared: false };
+				return { status: 'PLACED' };
+			case 'PaymentInitiatedEvent':
+				return { status: 'PAYMENT_INITIATED' };
 			case 'OrderPaidEvent':
-				return { ...currentState, paid: true };
+				return { status: 'PAID' };
 			case 'OrderPaymentFailedEvent':
-				return { ...currentState, paymentFailed: true };
+				return { status: 'PAYMENT_FAILED' };
 			case 'OrderPreparedEvent':
-				return { ...currentState, prepared: true };
+				return { status: 'PREPARED' };
 			default:
 				return currentState;
 		}
 	},
-	{
-		orderId: null,
-		paid: false,
-		paymentFailed: false,
-		prepared: false,
-	} as MarkOrderPaymentFailedState,
+	{ status: 'NOT_FOUND' } as MarkOrderPaymentFailedState,
 );

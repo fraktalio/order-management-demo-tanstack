@@ -9,7 +9,6 @@
  */
 
 import { expect } from 'vitest';
-// @ts-expect-error JSR npm compat layer TS resolution quirk — works at runtime
 import { createSpecs } from '@fraktalio/fmodel-decider';
 
 export const { DeciderEventSourcedSpec, ViewSpecification } = createSpecs({

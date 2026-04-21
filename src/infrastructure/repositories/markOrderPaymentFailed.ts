@@ -3,6 +3,7 @@ import { PostgresEventRepository } from '@fraktalio/fmodel-decider';
 import { createSqlClient } from '../pg-client-adapter.ts';
 import type {
 	MarkOrderPaymentFailedCommand,
+	PaymentInitiatedEvent,
 	RestaurantOrderPlacedEvent,
 	OrderPaidEvent,
 	OrderPaymentFailedEvent,
@@ -12,10 +13,15 @@ import type {
 export const markOrderPaymentFailedRepository = (sql: postgres.Sql) =>
 	new PostgresEventRepository<
 		MarkOrderPaymentFailedCommand,
-		RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPaymentFailedEvent | OrderPreparedEvent,
+		| RestaurantOrderPlacedEvent
+		| PaymentInitiatedEvent
+		| OrderPaidEvent
+		| OrderPaymentFailedEvent
+		| OrderPreparedEvent,
 		OrderPaymentFailedEvent
 	>(createSqlClient(sql), (cmd) => [
 		['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
+		['orderId:' + cmd.orderId, 'PaymentInitiatedEvent'],
 		['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 		['orderId:' + cmd.orderId, 'OrderPaymentFailedEvent'],
 		['orderId:' + cmd.orderId, 'OrderPreparedEvent'],

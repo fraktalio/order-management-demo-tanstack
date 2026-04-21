@@ -76,6 +76,12 @@ export class OrderPaymentAlreadyFailedError extends DomainError {
 	}
 }
 
+export class PaymentNotInitiatedError extends DomainError {
+	constructor(public readonly orderId: OrderId) {
+		super(`Payment was not initiated for order ${orderId}`);
+	}
+}
+
 export class MenuItemsNotAvailableError extends DomainError {
 	constructor(public readonly menuItemIds: readonly MenuItemId[]) {
 		super(`Menu items not available: ${menuItemIds.join(', ')}`);
@@ -162,6 +168,7 @@ export type Event =
 	| RestaurantCreatedEvent
 	| RestaurantMenuChangedEvent
 	| RestaurantOrderPlacedEvent
+	| PaymentInitiatedEvent
 	| OrderPaidEvent
 	| OrderPaymentFailedEvent
 	| OrderPreparedEvent;
@@ -196,6 +203,16 @@ export type RestaurantOrderPlacedEvent = TypeSafeEventShape<
 		readonly final: boolean;
 	},
 	['restaurantId', 'orderId']
+>;
+
+export type PaymentInitiatedEvent = TypeSafeEventShape<
+	{
+		readonly kind: 'PaymentInitiatedEvent';
+		readonly orderId: OrderId;
+		readonly amount: string;
+		readonly final: boolean;
+	},
+	['orderId']
 >;
 
 export type OrderPaidEvent = TypeSafeEventShape<

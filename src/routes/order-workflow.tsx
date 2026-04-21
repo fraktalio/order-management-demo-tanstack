@@ -324,6 +324,8 @@ function WorkflowOrchestrator() {
 		workflowStatus?.status === 'waiting' || workflowStatus?.status === 'running';
 	const workflowStarted = instanceId !== null;
 	const paymentFailed = workflowStatus?.output?.finalStatus === 'payment_failed';
+	const isFreeOrder =
+		workflowStatus?.status === 'complete' && workflowStatus.output?.payment === null;
 
 	return (
 		<div className="space-y-8">
@@ -452,11 +454,17 @@ function WorkflowOrchestrator() {
 			<StepCard
 				number={2}
 				title="Payment Gateway"
-				active={workflowStarted && isWaitingForPayment && paymentStatus.type !== 'success'}
-				done={paymentStatus.type === 'success'}
+				active={
+					workflowStarted && isWaitingForPayment && paymentStatus.type !== 'success' && !isFreeOrder
+				}
+				done={paymentStatus.type === 'success' || isFreeOrder}
 			>
 				{!workflowStarted ? (
 					<p className="text-sm text-gray-500">Place an order to proceed to payment.</p>
+				) : isFreeOrder ? (
+					<p className="text-sm text-green-400">
+						Order was free — no payment required. Skipped payment gateway.
+					</p>
 				) : paymentStatus.type === 'success' ? (
 					<p
 						className={`text-sm ${paymentStatus.message?.includes('declined') ? 'text-red-400' : 'text-green-400'}`}
@@ -505,21 +513,27 @@ function WorkflowOrchestrator() {
 						<p className={paymentFailed ? 'text-red-400' : 'text-green-400'}>
 							{paymentFailed
 								? 'Payment failed — order will not be prepared.'
-								: 'Payment approved — order is ready for preparation in the Kitchen.'}
+								: isFreeOrder
+									? 'Free order — automatically marked as paid. Ready for preparation in the Kitchen.'
+									: 'Payment approved — order is ready for preparation in the Kitchen.'}
 						</p>
 						<dl className="space-y-2 text-sm">
 							<div className="flex gap-2">
 								<dt className="font-medium text-gray-300">Order ID:</dt>
 								<dd className="text-gray-400">{workflowStatus.output.orderId}</dd>
 							</div>
-							<div className="flex gap-2">
-								<dt className="font-medium text-gray-300">Transaction:</dt>
-								<dd className="text-gray-400">{workflowStatus.output.payment?.transactionId}</dd>
-							</div>
-							<div className="flex gap-2">
-								<dt className="font-medium text-gray-300">Amount:</dt>
-								<dd className="text-gray-400">${workflowStatus.output.payment?.amount}</dd>
-							</div>
+							{workflowStatus.output.payment && (
+								<>
+									<div className="flex gap-2">
+										<dt className="font-medium text-gray-300">Transaction:</dt>
+										<dd className="text-gray-400">{workflowStatus.output.payment.transactionId}</dd>
+									</div>
+									<div className="flex gap-2">
+										<dt className="font-medium text-gray-300">Amount:</dt>
+										<dd className="text-gray-400">${workflowStatus.output.payment.amount}</dd>
+									</div>
+								</>
+							)}
 							<div className="flex gap-2">
 								<dt className="font-medium text-gray-300">Final Status:</dt>
 								<dd>

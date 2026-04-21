@@ -31,16 +31,19 @@ export class AllDeciderRepository {
 						['restaurantId:' + cmd.restaurantId, 'RestaurantCreatedEvent'],
 						['restaurantId:' + cmd.restaurantId, 'RestaurantMenuChangedEvent'],
 						['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
+						['orderId:' + cmd.orderId, 'PaymentInitiatedEvent'],
 					];
 				case 'MarkOrderPaidCommand':
 					return [
 						['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
+						['orderId:' + cmd.orderId, 'PaymentInitiatedEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 						['orderId:' + cmd.orderId, 'OrderPreparedEvent'],
 					];
 				case 'MarkOrderPaymentFailedCommand':
 					return [
 						['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
+						['orderId:' + cmd.orderId, 'PaymentInitiatedEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 						['orderId:' + cmd.orderId, 'OrderPaymentFailedEvent'],
 						['orderId:' + cmd.orderId, 'OrderPreparedEvent'],
