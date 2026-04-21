@@ -21,11 +21,7 @@ type PlaceOrderState = {
 export const placeOrderDecider: DcbDecider<
 	PlaceOrderCommand,
 	PlaceOrderState,
-	| RestaurantCreatedEvent
-	| RestaurantMenuChangedEvent
-	| RestaurantOrderPlacedEvent
-	| PaymentInitiatedEvent
-	| OrderPaidEvent,
+	RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent,
 	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent
 > = new DcbDecider(
 	(
@@ -93,10 +89,6 @@ export const placeOrderDecider: DcbDecider<
 				return { ...currentState, menu: event.menu };
 			case 'RestaurantOrderPlacedEvent':
 				return { ...currentState, orderPlaced: true };
-			case 'PaymentInitiatedEvent':
-				return currentState;
-			case 'OrderPaidEvent':
-				return currentState;
 			default:
 				return currentState;
 		}

@@ -3,20 +3,12 @@ import {
 	type MarkOrderPaidCommand,
 	OrderNotFoundError,
 	type OrderPaidEvent,
-	type OrderPaymentFailedEvent,
-	type OrderPreparedEvent,
 	type PaymentInitiatedEvent,
 	PaymentNotInitiatedError,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
-type MarkOrderPaidStatus =
-	| 'NOT_FOUND'
-	| 'PLACED'
-	| 'PAYMENT_INITIATED'
-	| 'PAID'
-	| 'PAYMENT_FAILED'
-	| 'PREPARED';
+type MarkOrderPaidStatus = 'NOT_FOUND' | 'PLACED' | 'PAYMENT_INITIATED' | 'PAID';
 
 type MarkOrderPaidState = {
 	readonly status: MarkOrderPaidStatus;
@@ -25,11 +17,7 @@ type MarkOrderPaidState = {
 export const markOrderPaidDecider: DcbDecider<
 	MarkOrderPaidCommand,
 	MarkOrderPaidState,
-	| RestaurantOrderPlacedEvent
-	| PaymentInitiatedEvent
-	| OrderPaidEvent
-	| OrderPaymentFailedEvent
-	| OrderPreparedEvent,
+	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent,
 	OrderPaidEvent
 > = new DcbDecider(
 	(command, currentState) => {
@@ -41,7 +29,6 @@ export const markOrderPaidDecider: DcbDecider<
 					case 'PLACED':
 						throw new PaymentNotInitiatedError(command.orderId);
 					case 'PAYMENT_INITIATED':
-					case 'PAYMENT_FAILED':
 						return [
 							{
 								kind: 'OrderPaidEvent',
@@ -52,8 +39,6 @@ export const markOrderPaidDecider: DcbDecider<
 						];
 					case 'PAID':
 						return []; // Idempotent: duplicate command is a no-op
-					case 'PREPARED':
-						return []; // Already paid and prepared — still idempotent
 					default: {
 						const _exhaustiveCheck: never = currentState.status;
 						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);
@@ -72,10 +57,6 @@ export const markOrderPaidDecider: DcbDecider<
 				return { status: 'PAYMENT_INITIATED' };
 			case 'OrderPaidEvent':
 				return { status: 'PAID' };
-			case 'OrderPaymentFailedEvent':
-				return { status: 'PAYMENT_FAILED' };
-			case 'OrderPreparedEvent':
-				return { status: 'PREPARED' };
 			default:
 				return currentState;
 		}

@@ -2,14 +2,7 @@ import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderPaidDecider } from '../deciders/markOrderPaid.ts';
 import { OrderNotFoundError, PaymentNotInitiatedError } from '../api.ts';
-import {
-	oId,
-	orderPlaced,
-	paymentInitiated,
-	orderPaid,
-	orderPaymentFailed,
-	orderPrepared,
-} from '../fixtures.ts';
+import { oId, orderPlaced, paymentInitiated, orderPaid } from '../fixtures.ts';
 
 describe('markOrderPaidDecider', () => {
 	const spec = DeciderSpecification.for(markOrderPaidDecider);
@@ -17,13 +10,6 @@ describe('markOrderPaidDecider', () => {
 	it('marks order as paid when payment was initiated', () => {
 		spec
 			.given([orderPlaced, paymentInitiated])
-			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
-			.then([orderPaid]);
-	});
-
-	it('marks order as paid after a previous payment failure (retry)', () => {
-		spec
-			.given([orderPlaced, paymentInitiated, orderPaymentFailed])
 			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
 			.then([orderPaid]);
 	});
@@ -45,13 +31,6 @@ describe('markOrderPaidDecider', () => {
 	it('ignores duplicate payment (idempotent)', () => {
 		spec
 			.given([orderPlaced, paymentInitiated, orderPaid])
-			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
-			.then([]);
-	});
-
-	it('is idempotent when already paid even if prepared', () => {
-		spec
-			.given([orderPlaced, paymentInitiated, orderPaid, orderPrepared])
 			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
 			.then([]);
 	});

@@ -49,14 +49,14 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                         | Command                         | Reads                                                                                                                           | Produces                                                                |
-| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                                                        | `RestaurantCreatedEvent`                                                |
-| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                                                          | `RestaurantMenuChangedEvent`                                            |
-| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` |
-| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent`        | `OrderPaidEvent`                                                        |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent`, `OrderPreparedEvent`        | `OrderPaymentFailedEvent`                                               |
-| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                                                            | `OrderPreparedEvent`                                                    |
+| Decider                         | Command                         | Reads                                                                                              | Produces                                                                |
+| ------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                           | `RestaurantCreatedEvent`                                                |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                             | `RestaurantMenuChangedEvent`                                            |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`               | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`                            | `OrderPaidEvent`                                                        |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent` | `OrderPaymentFailedEvent`                                               |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                               | `OrderPreparedEvent`                                                    |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
@@ -99,19 +99,14 @@ changeRestaurantMenu   → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent")]
 placeOrder             → [("restaurantId:<id>", "RestaurantCreatedEvent"),
                           ("restaurantId:<id>", "RestaurantMenuChangedEvent"),
-                          ("orderId:<id>",      "RestaurantOrderPlacedEvent"),
-                          ("orderId:<id>",      "PaymentInitiatedEvent"),
-                          ("orderId:<id>",      "OrderPaidEvent")]
+                          ("orderId:<id>",      "RestaurantOrderPlacedEvent")]
 markOrderPaid          → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "PaymentInitiatedEvent"),
-                          ("orderId:<id>",      "OrderPaidEvent"),
-                          ("orderId:<id>",      "OrderPaymentFailedEvent"),
-                          ("orderId:<id>",      "OrderPreparedEvent")]
+                          ("orderId:<id>",      "OrderPaidEvent")]
 markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "PaymentInitiatedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
-                          ("orderId:<id>",      "OrderPaymentFailedEvent"),
-                          ("orderId:<id>",      "OrderPreparedEvent")]
+                          ("orderId:<id>",      "OrderPaymentFailedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]

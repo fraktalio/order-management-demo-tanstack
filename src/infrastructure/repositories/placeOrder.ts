@@ -13,16 +13,10 @@ import type {
 export const placeOrderRepository = (sql: postgres.Sql) =>
 	new PostgresEventRepository<
 		PlaceOrderCommand,
-		| RestaurantCreatedEvent
-		| RestaurantMenuChangedEvent
-		| RestaurantOrderPlacedEvent
-		| PaymentInitiatedEvent
-		| OrderPaidEvent,
+		RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent,
 		RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent
 	>(createSqlClient(sql), (cmd) => [
 		['restaurantId:' + cmd.restaurantId, 'RestaurantCreatedEvent'],
 		['restaurantId:' + cmd.restaurantId, 'RestaurantMenuChangedEvent'],
 		['orderId:' + cmd.orderId, 'RestaurantOrderPlacedEvent'],
-		['orderId:' + cmd.orderId, 'PaymentInitiatedEvent'],
-		['orderId:' + cmd.orderId, 'OrderPaidEvent'],
 	]);

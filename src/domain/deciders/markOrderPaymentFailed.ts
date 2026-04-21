@@ -2,11 +2,9 @@ import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderPaymentFailedCommand,
 	OrderAlreadyPaidError,
-	OrderAlreadyPreparedError,
 	OrderNotFoundError,
 	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
-	type OrderPreparedEvent,
 	type PaymentInitiatedEvent,
 	PaymentNotInitiatedError,
 	type RestaurantOrderPlacedEvent,
@@ -17,8 +15,7 @@ type MarkOrderPaymentFailedStatus =
 	| 'PLACED'
 	| 'PAYMENT_INITIATED'
 	| 'PAID'
-	| 'PAYMENT_FAILED'
-	| 'PREPARED';
+	| 'PAYMENT_FAILED';
 
 type MarkOrderPaymentFailedState = {
 	readonly status: MarkOrderPaymentFailedStatus;
@@ -27,11 +24,7 @@ type MarkOrderPaymentFailedState = {
 export const markOrderPaymentFailedDecider: DcbDecider<
 	MarkOrderPaymentFailedCommand,
 	MarkOrderPaymentFailedState,
-	| RestaurantOrderPlacedEvent
-	| PaymentInitiatedEvent
-	| OrderPaidEvent
-	| OrderPaymentFailedEvent
-	| OrderPreparedEvent,
+	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent | OrderPaymentFailedEvent,
 	OrderPaymentFailedEvent
 > = new DcbDecider(
 	(command, currentState) => {
@@ -56,8 +49,6 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 						throw new OrderAlreadyPaidError(command.orderId);
 					case 'PAYMENT_FAILED':
 						return []; // Idempotent: duplicate command is a no-op
-					case 'PREPARED':
-						throw new OrderAlreadyPreparedError(command.orderId);
 					default: {
 						const _exhaustiveCheck: never = currentState.status;
 						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);
@@ -78,8 +69,6 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 				return { status: 'PAID' };
 			case 'OrderPaymentFailedEvent':
 				return { status: 'PAYMENT_FAILED' };
-			case 'OrderPreparedEvent':
-				return { status: 'PREPARED' };
 			default:
 				return currentState;
 		}

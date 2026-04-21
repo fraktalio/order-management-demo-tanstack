@@ -1,7 +1,6 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderAsPreparedCommand,
-	type OrderId,
 	OrderNotFoundError,
 	OrderNotPaidError,
 	type OrderPaidEvent,
@@ -9,10 +8,10 @@ import {
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
+type MarkOrderAsPreparedStatus = 'NOT_FOUND' | 'PLACED' | 'PAID' | 'PREPARED';
+
 type MarkOrderAsPreparedState = {
-	readonly orderId: OrderId | null;
-	readonly paid: boolean;
-	readonly prepared: boolean;
+	readonly status: MarkOrderAsPreparedStatus;
 };
 
 export const markOrderAsPreparedDecider: DcbDecider<
@@ -24,23 +23,27 @@ export const markOrderAsPreparedDecider: DcbDecider<
 	(command, currentState) => {
 		switch (command?.kind) {
 			case 'MarkOrderAsPreparedCommand': {
-				if (currentState.orderId === null) {
-					throw new OrderNotFoundError(command.orderId);
+				switch (currentState.status) {
+					case 'NOT_FOUND':
+						throw new OrderNotFoundError(command.orderId);
+					case 'PLACED':
+						throw new OrderNotPaidError(command.orderId);
+					case 'PAID':
+						return [
+							{
+								kind: 'OrderPreparedEvent',
+								orderId: command.orderId,
+								final: false,
+								tagFields: ['orderId'],
+							},
+						];
+					case 'PREPARED':
+						return []; // Idempotent: duplicate command is a no-op
+					default: {
+						const _exhaustiveCheck: never = currentState.status;
+						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);
+					}
 				}
-				if (currentState.prepared) {
-					return []; // Idempotent: duplicate command is a no-op
-				}
-				if (!currentState.paid) {
-					throw new OrderNotPaidError(command.orderId);
-				}
-				return [
-					{
-						kind: 'OrderPreparedEvent',
-						orderId: command.orderId,
-						final: false,
-						tagFields: ['orderId'],
-					},
-				];
 			}
 			default:
 				return [];
@@ -49,14 +52,14 @@ export const markOrderAsPreparedDecider: DcbDecider<
 	(currentState, event) => {
 		switch (event?.kind) {
 			case 'RestaurantOrderPlacedEvent':
-				return { orderId: event.orderId, paid: false, prepared: false };
+				return { status: 'PLACED' };
 			case 'OrderPaidEvent':
-				return { ...currentState, paid: true };
+				return { status: 'PAID' };
 			case 'OrderPreparedEvent':
-				return { ...currentState, prepared: true };
+				return { status: 'PREPARED' };
 			default:
 				return currentState;
 		}
 	},
-	{ orderId: null, paid: false, prepared: false } as MarkOrderAsPreparedState,
+	{ status: 'NOT_FOUND' } as MarkOrderAsPreparedState,
 );
