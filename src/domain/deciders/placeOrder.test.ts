@@ -12,8 +12,8 @@ import {
 	freeRestaurantCreated,
 	menuChanged,
 	orderPlaced,
-	orderPaid,
 	paymentInitiated,
+	paymentExempted,
 } from '../fixtures.ts';
 
 describe('placeOrderDecider', () => {
@@ -31,7 +31,7 @@ describe('placeOrderDecider', () => {
 			.then([orderPlaced, paymentInitiated]);
 	});
 
-	it('places an order and marks as paid when total is 0 (free product)', () => {
+	it('places an order and exempts payment when total is 0 (free product)', () => {
 		spec
 			.given([freeRestaurantCreated])
 			.when({
@@ -49,7 +49,7 @@ describe('placeOrderDecider', () => {
 					final: false,
 					tagFields: ['restaurantId', 'orderId'],
 				},
-				orderPaid,
+				paymentExempted,
 			]);
 	});
 

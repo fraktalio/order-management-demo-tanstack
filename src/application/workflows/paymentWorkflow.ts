@@ -117,12 +117,12 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 				};
 			}
 		} else {
-			// Free order — already marked as paid by PlaceOrderCommand (emitted OrderPaidEvent)
+			// Free order — payment exempted by PlaceOrderCommand (emitted PaymentExemptedEvent)
 			return {
 				orderId: orderResult.orderId,
 				restaurantId: orderResult.restaurantId,
 				payment: null,
-				finalStatus: 'paid',
+				finalStatus: 'payment_exempted',
 			};
 		}
 	}

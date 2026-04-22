@@ -16,6 +16,7 @@ import {
 	XCircle,
 	Clock,
 	Search,
+	RotateCcw,
 } from 'lucide-react';
 
 // ─── Server Functions ───────────────────────────────────────────────
@@ -79,7 +80,7 @@ const fetchOrderByWorkflow = createServerFn({ method: 'POST' })
 		return withDb(env, async (sql) => {
 			const rows = await sql.unsafe<{ data: Buffer }[]>(
 				`SELECT e.data FROM dcb.events e
-				 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
+				 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
 				 ORDER BY e.id ASC`,
 			);
 			let state: OrderViewState | null = null;
@@ -323,9 +324,21 @@ function WorkflowOrchestrator() {
 	const isWaitingForPayment =
 		workflowStatus?.status === 'waiting' || workflowStatus?.status === 'running';
 	const workflowStarted = instanceId !== null;
+	const workflowDone = workflowStatus?.status === 'complete' || workflowStatus?.status === 'errored';
 	const paymentFailed = workflowStatus?.output?.finalStatus === 'payment_failed';
 	const isFreeOrder =
 		workflowStatus?.status === 'complete' && workflowStatus.output?.payment === null;
+
+	const handleNewOrder = () => {
+		stopPolling();
+		setInstanceId(null);
+		setWorkflowStatus(null);
+		setSubmitStatus({ type: 'idle' });
+		setPaymentStatus({ type: 'idle' });
+		setSelectedItems(new Set());
+		setOid(crypto.randomUUID());
+		navigate({ to: '/order-workflow', search: {}, replace: true });
+	};
 
 	return (
 		<div className="space-y-8">
@@ -514,7 +527,7 @@ function WorkflowOrchestrator() {
 							{paymentFailed
 								? 'Payment failed — order will not be prepared.'
 								: isFreeOrder
-									? 'Free order — automatically marked as paid. Ready for preparation in the Kitchen.'
+									? 'Free order — payment exempted. Ready for preparation in the Kitchen.'
 									: 'Payment approved — order is ready for preparation in the Kitchen.'}
 						</p>
 						<dl className="space-y-2 text-sm">
@@ -542,7 +555,7 @@ function WorkflowOrchestrator() {
 											paymentFailed ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'
 										}`}
 									>
-										{workflowStatus.output.finalStatus?.toUpperCase()}
+										{workflowStatus.output.finalStatus?.toUpperCase().replace(/_/g, ' ')}
 									</span>
 								</dd>
 							</div>
@@ -575,6 +588,17 @@ function WorkflowOrchestrator() {
 						)}
 					</div>
 				</div>
+			)}
+
+			{/* New Order */}
+			{workflowDone && (
+				<button
+					onClick={handleNewOrder}
+					className="flex items-center gap-2 rounded-lg bg-cyan-500 px-6 py-2 font-semibold transition-colors hover:bg-cyan-600"
+				>
+					<RotateCcw size={18} />
+					New Order
+				</button>
 			)}
 		</div>
 	);

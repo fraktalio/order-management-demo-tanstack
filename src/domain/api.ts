@@ -169,6 +169,7 @@ export type Event =
 	| RestaurantMenuChangedEvent
 	| RestaurantOrderPlacedEvent
 	| PaymentInitiatedEvent
+	| PaymentExemptedEvent
 	| OrderPaidEvent
 	| OrderPaymentFailedEvent
 	| OrderPreparedEvent;
@@ -210,6 +211,16 @@ export type PaymentInitiatedEvent = TypeSafeEventShape<
 		readonly kind: 'PaymentInitiatedEvent';
 		readonly orderId: OrderId;
 		readonly amount: string;
+		readonly final: boolean;
+	},
+	['orderId']
+>;
+
+export type PaymentExemptedEvent = TypeSafeEventShape<
+	{
+		readonly kind: 'PaymentExemptedEvent';
+		readonly orderId: OrderId;
+		readonly reason: string;
 		readonly final: boolean;
 	},
 	['orderId']

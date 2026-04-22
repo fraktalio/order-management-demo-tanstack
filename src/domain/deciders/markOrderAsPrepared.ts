@@ -5,10 +5,11 @@ import {
 	OrderNotPaidError,
 	type OrderPaidEvent,
 	type OrderPreparedEvent,
+	type PaymentExemptedEvent,
 	type RestaurantOrderPlacedEvent,
 } from '../api.ts';
 
-type MarkOrderAsPreparedStatus = 'NOT_FOUND' | 'PLACED' | 'PAID' | 'PREPARED';
+type MarkOrderAsPreparedStatus = 'NOT_FOUND' | 'PLACED' | 'PAYMENT_EXEMPTED' | 'PAID' | 'PREPARED';
 
 type MarkOrderAsPreparedState = {
 	readonly status: MarkOrderAsPreparedStatus;
@@ -17,7 +18,7 @@ type MarkOrderAsPreparedState = {
 export const markOrderAsPreparedDecider: DcbDecider<
 	MarkOrderAsPreparedCommand,
 	MarkOrderAsPreparedState,
-	RestaurantOrderPlacedEvent | OrderPaidEvent | OrderPreparedEvent,
+	RestaurantOrderPlacedEvent | PaymentExemptedEvent | OrderPaidEvent | OrderPreparedEvent,
 	OrderPreparedEvent
 > = new DcbDecider(
 	(command, currentState) => {
@@ -29,6 +30,7 @@ export const markOrderAsPreparedDecider: DcbDecider<
 					case 'PLACED':
 						throw new OrderNotPaidError(command.orderId);
 					case 'PAID':
+					case 'PAYMENT_EXEMPTED':
 						return [
 							{
 								kind: 'OrderPreparedEvent',
@@ -53,6 +55,8 @@ export const markOrderAsPreparedDecider: DcbDecider<
 		switch (event?.kind) {
 			case 'RestaurantOrderPlacedEvent':
 				return { status: 'PLACED' };
+			case 'PaymentExemptedEvent':
+				return { status: 'PAYMENT_EXEMPTED' };
 			case 'OrderPaidEvent':
 				return { status: 'PAID' };
 			case 'OrderPreparedEvent':

@@ -7,6 +7,7 @@ import {
 	menu,
 	orderPlaced,
 	orderPaid,
+	paymentExempted,
 	orderPaymentFailed,
 	orderPrepared,
 } from '../fixtures.ts';
@@ -23,6 +24,12 @@ describe('orderView', () => {
 	it('projects paid status', () => {
 		spec
 			.given([orderPlaced, orderPaid])
+			.then({ orderId: oId, restaurantId: rId, menuItems: menu.menuItems, status: 'PAID' });
+	});
+
+	it('projects paid status when payment exempted (free order)', () => {
+		spec
+			.given([orderPlaced, paymentExempted])
 			.then({ orderId: oId, restaurantId: rId, menuItems: menu.menuItems, status: 'PAID' });
 	});
 

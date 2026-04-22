@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderAsPreparedDecider } from '../deciders/markOrderAsPrepared.ts';
 import { OrderNotFoundError, OrderNotPaidError } from '../api.ts';
-import { oId, orderPlaced, orderPaid, orderPrepared } from '../fixtures.ts';
+import { oId, orderPlaced, orderPaid, paymentExempted, orderPrepared } from '../fixtures.ts';
 
 describe('markOrderAsPreparedDecider', () => {
 	const spec = DeciderSpecification.for(markOrderAsPreparedDecider);
@@ -10,6 +10,13 @@ describe('markOrderAsPreparedDecider', () => {
 	it('marks order as prepared when paid', () => {
 		spec
 			.given([orderPlaced, orderPaid])
+			.when({ kind: 'MarkOrderAsPreparedCommand', orderId: oId })
+			.then([orderPrepared]);
+	});
+
+	it('marks order as prepared when payment was exempted (free order)', () => {
+		spec
+			.given([orderPlaced, paymentExempted])
 			.when({ kind: 'MarkOrderAsPreparedCommand', orderId: oId })
 			.then([orderPrepared]);
 	});

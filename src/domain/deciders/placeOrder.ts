@@ -1,7 +1,7 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	MenuItemsNotAvailableError,
-	type OrderPaidEvent,
+	type PaymentExemptedEvent,
 	type PaymentInitiatedEvent,
 	type PlaceOrderCommand,
 	type RestaurantCreatedEvent,
@@ -22,12 +22,12 @@ export const placeOrderDecider: DcbDecider<
 	PlaceOrderCommand,
 	PlaceOrderState,
 	RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent,
-	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent
+	RestaurantOrderPlacedEvent | PaymentInitiatedEvent | PaymentExemptedEvent
 > = new DcbDecider(
 	(
 		command,
 		currentState,
-	): readonly (RestaurantOrderPlacedEvent | PaymentInitiatedEvent | OrderPaidEvent)[] => {
+	): readonly (RestaurantOrderPlacedEvent | PaymentInitiatedEvent | PaymentExemptedEvent)[] => {
 		switch (command?.kind) {
 			case 'PlaceOrderCommand': {
 				if (currentState.restaurantId === null) {
@@ -70,8 +70,9 @@ export const placeOrderDecider: DcbDecider<
 				return [
 					orderPlacedEvent,
 					{
-						kind: 'OrderPaidEvent',
+						kind: 'PaymentExemptedEvent',
 						orderId: command.orderId,
+						reason: 'Order total is zero',
 						final: false,
 						tagFields: ['orderId'],
 					},

@@ -19,7 +19,7 @@ const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 		// Load all order-related events from the event store
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
 			`SELECT e.data FROM dcb.events e
-			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
+			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
 			 ORDER BY e.id ASC`,
 		);
 

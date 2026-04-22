@@ -49,21 +49,22 @@ matching exhaustive and the entire pipeline type-safe.
 
 ### Use-Case Deciders
 
-| Decider                         | Command                         | Reads                                                                                              | Produces                                                                |
-| ------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                           | `RestaurantCreatedEvent`                                                |
-| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                             | `RestaurantMenuChangedEvent`                                            |
-| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`               | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent` |
-| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`                            | `OrderPaidEvent`                                                        |
-| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent` | `OrderPaymentFailedEvent`                                               |
-| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`                               | `OrderPreparedEvent`                                                    |
+| Decider                         | Command                         | Reads                                                                                              | Produces                                                                      |
+| ------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `createRestaurantDecider`       | `CreateRestaurantCommand`       | `RestaurantCreatedEvent`                                                                           | `RestaurantCreatedEvent`                                                      |
+| `changeRestaurantMenuDecider`   | `ChangeRestaurantMenuCommand`   | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`                                             | `RestaurantMenuChangedEvent`                                                  |
+| `placeOrderDecider`             | `PlaceOrderCommand`             | `RestaurantCreatedEvent`, `RestaurantMenuChangedEvent`, `RestaurantOrderPlacedEvent`               | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `PaymentExemptedEvent` |
+| `markOrderPaidDecider`          | `MarkOrderPaidCommand`          | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`                            | `OrderPaidEvent`                                                              |
+| `markOrderPaymentFailedDecider` | `MarkOrderPaymentFailedCommand` | `RestaurantOrderPlacedEvent`, `PaymentInitiatedEvent`, `OrderPaidEvent`, `OrderPaymentFailedEvent` | `OrderPaymentFailedEvent`                                                     |
+| `markOrderAsPreparedDecider`    | `MarkOrderAsPreparedCommand`    | `RestaurantOrderPlacedEvent`, `PaymentExemptedEvent`, `OrderPaidEvent`, `OrderPreparedEvent`       | `OrderPreparedEvent`                                                          |
 
 Notice how `placeOrderDecider` spans both Restaurant and Order concepts —
 something that's natural in DCB but would require a saga or process manager in
 the aggregate pattern. Additionally, `placeOrderDecider` makes a domain-level
 decision about payment: if the order total is greater than zero, it emits
 `PaymentInitiatedEvent`; if the order is free (total = 0), it emits
-`OrderPaidEvent` directly — no separate payment step needed.
+`PaymentExemptedEvent` directly — the kitchen treats both paid and exempted orders
+the same way.
 
 ### Event Repository (PostgreSQL)
 
@@ -108,6 +109,7 @@ markOrderPaymentFailed → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPaymentFailedEvent")]
 markOrderAsPrepared    → [("orderId:<id>",      "RestaurantOrderPlacedEvent"),
+                          ("orderId:<id>",      "PaymentExemptedEvent"),
                           ("orderId:<id>",      "OrderPaidEvent"),
                           ("orderId:<id>",      "OrderPreparedEvent")]
 ```
@@ -242,7 +244,7 @@ This demo includes a `PaymentWorkflow` that orchestrates the order and payment
 lifecycle as a single durable, multi-step execution. The `PlaceOrderCommand`
 itself decides the payment path: if the order total is greater than zero, it
 emits `PaymentInitiatedEvent` and the workflow waits for an external payment
-signal; if the order is free, it emits `OrderPaidEvent` directly and the
+signal; if the order is free, it emits `PaymentExemptedEvent` and the
 workflow completes immediately. Each command handler is a standalone use case
 with its own decider and sliced repository, but the workflow orchestrates them
 as a cohesive unit with retries, persistent state, and the ability to pause
@@ -257,7 +259,7 @@ The workflow steps:
 
 1. **Place Order** — calls `placeOrderHandler` to persist the order via event
    sourcing. The decider emits `PaymentInitiatedEvent` (total > 0) or
-   `OrderPaidEvent` (free order)
+   `PaymentExemptedEvent` (free order)
 2. **If payment required** — pauses with `step.waitForEvent` until a payment
    confirmation (or rejection) arrives from a dummy payment gateway
 3. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
@@ -315,7 +317,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 				return { ...orderResult, finalStatus: 'payment_failed' };
 			}
 		} else {
-			// Free order — already marked as paid by PlaceOrderCommand (emitted OrderPaidEvent)
+			// Free order — payment exempted by PlaceOrderCommand (emitted PaymentExemptedEvent)
 			return { ...orderResult, payment: null, finalStatus: 'paid' };
 		}
 	}

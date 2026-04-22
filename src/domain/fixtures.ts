@@ -2,6 +2,7 @@ import {
 	type RestaurantCreatedEvent,
 	type RestaurantMenuChangedEvent,
 	type RestaurantOrderPlacedEvent,
+	type PaymentExemptedEvent,
 	type PaymentInitiatedEvent,
 	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
@@ -85,6 +86,14 @@ export const freeOrderPlaced: RestaurantOrderPlacedEvent = {
 	menuItems: freeMenu.menuItems,
 	final: false,
 	tagFields: ['restaurantId', 'orderId'],
+};
+
+export const paymentExempted: PaymentExemptedEvent = {
+	kind: 'PaymentExemptedEvent',
+	orderId: oId,
+	reason: 'Order total is zero',
+	final: false,
+	tagFields: ['orderId'],
 };
 
 export const orderPaid: OrderPaidEvent = {
