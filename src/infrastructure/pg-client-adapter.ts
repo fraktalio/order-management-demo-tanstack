@@ -6,7 +6,6 @@
  */
 
 import type postgres from 'postgres';
-// @ts-expect-error JSR npm compat layer TS resolution quirk — works at runtime
 import type { SqlClient } from '@fraktalio/fmodel-decider';
 
 export const createSqlClient = (sql: postgres.Sql): SqlClient => ({
