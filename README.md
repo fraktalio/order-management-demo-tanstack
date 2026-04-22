@@ -229,7 +229,7 @@ test('Order View - Order Prepared Event', () => {
 });
 ```
 
-## Cloudflare Workflows
+## Automation with Workflows
 
 [Cloudflare Workflows](https://developers.cloudflare.com/workflows/) provide
 durable, multi-step execution with automatic retries, persistent state, and the
@@ -241,14 +241,16 @@ to external signals, and handles compensating actions on failure.
 ![Workflow](workflow1.png)
 
 This demo includes a `PaymentWorkflow` that orchestrates the order and payment
-lifecycle as a single durable, multi-step execution. The `PlaceOrderCommand`
-itself decides the payment path: if the order total is greater than zero, it
-emits `PaymentInitiatedEvent` and the workflow waits for an external payment
-signal; if the order is free, it emits `PaymentExemptedEvent` and the
-workflow completes immediately. Each command handler is a standalone use case
-with its own decider and sliced repository, but the workflow orchestrates them
-as a cohesive unit with retries, persistent state, and the ability to pause
-mid-flight and wait for an external signal.
+lifecycle as a single durable, multi-step execution. The workflow itself is
+intentionally simple — it just wraps two independent, idempotent command handler
+slices (`placeOrder` and `markOrderPaid`/`markOrderPaymentFailed`) and
+coordinates them with a `waitForEvent` pause in between. There is no complex logic; the domain deciders handle all the
+invariants and idempotency, so the workflow is purely orchestration.
+
+The `PlaceOrderCommand` itself decides the payment path: if the order total is
+greater than zero, it emits `PaymentInitiatedEvent` and the workflow waits for
+an external payment signal; if the order is free, it emits
+`PaymentExemptedEvent` and the workflow completes immediately.
 
 The diagram below shows how the workflow spans the two command handlers,
 with the payment gateway event bridging them:

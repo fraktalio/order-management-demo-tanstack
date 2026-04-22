@@ -324,7 +324,8 @@ function WorkflowOrchestrator() {
 	const isWaitingForPayment =
 		workflowStatus?.status === 'waiting' || workflowStatus?.status === 'running';
 	const workflowStarted = instanceId !== null;
-	const workflowDone = workflowStatus?.status === 'complete' || workflowStatus?.status === 'errored';
+	const workflowDone =
+		workflowStatus?.status === 'complete' || workflowStatus?.status === 'errored';
 	const paymentFailed = workflowStatus?.output?.finalStatus === 'payment_failed';
 	const isFreeOrder =
 		workflowStatus?.status === 'complete' && workflowStatus.output?.payment === null;
