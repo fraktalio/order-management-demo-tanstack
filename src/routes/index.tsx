@@ -119,13 +119,6 @@ function App() {
 			</section>
 
 			<section className="mx-auto max-w-7xl px-6 py-16">
-				<h2 className="mb-8 text-center text-3xl font-bold text-slate-900 dark:text-white">
-					Event Modeling Blueprint
-				</h2>
-				<p className="mx-auto mb-8 max-w-3xl text-center text-slate-500 dark:text-gray-400">
-					The full event model of the solution — commands, events, views, and workflows laid out as
-					a blueprint.
-				</p>
 				<div className="overflow-hidden rounded-xl border border-gray-200 bg-white/50 p-2 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
 					<img
 						src="/workflow.png"
