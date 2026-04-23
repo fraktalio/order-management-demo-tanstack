@@ -113,6 +113,21 @@ function App() {
 					))}
 				</div>
 			</section>
+
+			<section className="mx-auto max-w-7xl px-6 py-16">
+				<h2 className="mb-8 text-center text-3xl font-bold text-white">Event Modeling Blueprint</h2>
+				<p className="mx-auto mb-8 max-w-3xl text-center text-gray-400">
+					The full event model of the solution — commands, events, views, and workflows laid out as
+					a blueprint.
+				</p>
+				<div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-800/50 p-2 backdrop-blur-sm">
+					<img
+						src="/workflow.png"
+						alt="Event Modeling blueprint showing the restaurant order management system's commands, events, and views"
+						className="w-full rounded-lg"
+					/>
+				</div>
+			</section>
 		</div>
 	);
 }
