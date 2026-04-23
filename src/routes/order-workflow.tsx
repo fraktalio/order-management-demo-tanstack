@@ -223,7 +223,7 @@ function WorkflowOrchestrator() {
 			} catch {
 				stopPolling();
 			}
-		}, 2000);
+		}, 1000);
 	};
 
 	const updateSearchParams = (params: WorkflowSearch) => {
