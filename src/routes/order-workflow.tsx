@@ -120,23 +120,29 @@ export const Route = createFileRoute('/order-workflow')({
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 type WorkflowStatusResponse = Awaited<ReturnType<typeof getWorkflowStatus>>;
 
+const inputClass =
+	'mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800';
+const labelClass = 'block text-sm font-medium text-slate-600 dark:text-gray-300';
+const secondaryBtnClass =
+	'rounded-lg bg-gray-200 px-3 py-2 transition-colors hover:bg-gray-300 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600';
+
 // ─── Page ───────────────────────────────────────────────────────────
 
 function OrderWorkflowPage() {
 	return (
-		<div className="min-h-screen bg-slate-900 p-8 text-white">
+		<div className="min-h-screen bg-gray-50 p-8 text-slate-900 dark:bg-slate-900 dark:text-white">
 			<div className="mx-auto max-w-3xl">
 				<div className="mb-8 flex items-center gap-3">
-					<Play className="h-8 w-8 text-cyan-400" />
+					<Play className="h-8 w-8 text-cyan-600 dark:text-cyan-400" />
 					<div>
 						<h1 className="text-3xl font-bold">Order Workflow</h1>
-						<p className="text-sm text-gray-400">
+						<p className="text-sm text-slate-500 dark:text-gray-400">
 							Place an order → Await payment → Mark paid or failed
 						</p>
 					</div>
 				</div>
 				<WorkflowOrchestrator />
-				<hr className="my-10 border-slate-700" />
+				<hr className="my-10 border-gray-200 dark:border-slate-700" />
 				<OrderTracker />
 			</div>
 		</div>
@@ -351,7 +357,7 @@ function WorkflowOrchestrator() {
 					)}
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div>
-							<label htmlFor="wf-rid" className="block text-sm font-medium text-gray-300">
+							<label htmlFor="wf-rid" className={labelClass}>
 								Restaurant
 							</label>
 							<select
@@ -360,7 +366,7 @@ function WorkflowOrchestrator() {
 								onChange={(e) => handleRestaurantChange(e.target.value)}
 								required
 								disabled={workflowStarted || listStatus.type === 'loading'}
-								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+								className={inputClass}
 							>
 								<option value="">
 									{listStatus.type === 'loading'
@@ -380,7 +386,7 @@ function WorkflowOrchestrator() {
 							)}
 						</div>
 						<div>
-							<label htmlFor="wf-oid" className="block text-sm font-medium text-gray-300">
+							<label htmlFor="wf-oid" className={labelClass}>
 								Order ID
 							</label>
 							<div className="mt-1 flex gap-2">
@@ -391,13 +397,13 @@ function WorkflowOrchestrator() {
 									onChange={(e) => setOid(e.target.value)}
 									required
 									disabled={workflowStarted}
-									className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+									className={inputClass}
 								/>
 								<button
 									type="button"
 									onClick={copyOrderId}
 									disabled={workflowStarted}
-									className="rounded-lg bg-slate-700 px-3 py-2 transition-colors hover:bg-slate-600 disabled:opacity-50"
+									className={secondaryBtnClass}
 									aria-label="Copy order ID"
 								>
 									{copied ? (
@@ -412,16 +418,20 @@ function WorkflowOrchestrator() {
 
 					{restaurant && restaurant.menu.menuItems.length > 0 && (
 						<fieldset className="space-y-2">
-							<legend className="text-sm font-medium text-gray-300">
+							<legend className="text-sm font-medium text-slate-600 dark:text-gray-300">
 								{restaurant.name} — {restaurant.menu.cuisine}
 							</legend>
-							<div className="overflow-hidden rounded-lg border border-slate-700">
+							<div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700">
 								<table className="w-full text-sm">
 									<thead>
-										<tr className="bg-slate-800">
+										<tr className="bg-gray-100 dark:bg-slate-800">
 											<th className="w-10 px-3 py-2 text-left"></th>
-											<th className="px-3 py-2 text-left text-gray-300">Name</th>
-											<th className="px-3 py-2 text-left text-gray-300">Price</th>
+											<th className="px-3 py-2 text-left text-slate-600 dark:text-gray-300">
+												Name
+											</th>
+											<th className="px-3 py-2 text-left text-slate-600 dark:text-gray-300">
+												Price
+											</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -429,7 +439,7 @@ function WorkflowOrchestrator() {
 											<tr
 												key={item.menuItemId}
 												onClick={() => !workflowStarted && toggleItem(item.menuItemId)}
-												className={`border-t border-slate-700 transition-colors ${workflowStarted ? 'opacity-50' : 'cursor-pointer hover:bg-slate-800'}`}
+												className={`border-t border-gray-200 transition-colors dark:border-slate-700 ${workflowStarted ? 'opacity-50' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800'}`}
 											>
 												<td className="px-3 py-2">
 													<input
@@ -487,7 +497,7 @@ function WorkflowOrchestrator() {
 					</p>
 				) : (
 					<div className="space-y-4">
-						<p className="text-sm text-gray-300">
+						<p className="text-sm text-slate-500 dark:text-gray-300">
 							The workflow is waiting for a payment event. Simulate the payment gateway response:
 						</p>
 						{paymentStatus.type === 'error' && (
@@ -533,23 +543,29 @@ function WorkflowOrchestrator() {
 						</p>
 						<dl className="space-y-2 text-sm">
 							<div className="flex gap-2">
-								<dt className="font-medium text-gray-300">Order ID:</dt>
-								<dd className="text-gray-400">{workflowStatus.output.orderId}</dd>
+								<dt className="font-medium text-slate-600 dark:text-gray-300">Order ID:</dt>
+								<dd className="text-slate-500 dark:text-gray-400">
+									{workflowStatus.output.orderId}
+								</dd>
 							</div>
 							{workflowStatus.output.payment && (
 								<>
 									<div className="flex gap-2">
-										<dt className="font-medium text-gray-300">Transaction:</dt>
-										<dd className="text-gray-400">{workflowStatus.output.payment.transactionId}</dd>
+										<dt className="font-medium text-slate-600 dark:text-gray-300">Transaction:</dt>
+										<dd className="text-slate-500 dark:text-gray-400">
+											{workflowStatus.output.payment.transactionId}
+										</dd>
 									</div>
 									<div className="flex gap-2">
-										<dt className="font-medium text-gray-300">Amount:</dt>
-										<dd className="text-gray-400">${workflowStatus.output.payment.amount}</dd>
+										<dt className="font-medium text-slate-600 dark:text-gray-300">Amount:</dt>
+										<dd className="text-slate-500 dark:text-gray-400">
+											${workflowStatus.output.payment.amount}
+										</dd>
 									</div>
 								</>
 							)}
 							<div className="flex gap-2">
-								<dt className="font-medium text-gray-300">Final Status:</dt>
+								<dt className="font-medium text-slate-600 dark:text-gray-300">Final Status:</dt>
 								<dd>
 									<span
 										className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -576,7 +592,7 @@ function WorkflowOrchestrator() {
 
 			{/* Workflow Instance Info */}
 			{instanceId && (
-				<div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+				<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
 					<div className="flex items-center justify-between">
 						<p className="font-mono text-xs text-gray-500">Instance: {instanceId}</p>
 						{workflowStatus && (
@@ -650,14 +666,14 @@ function OrderTracker() {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center gap-3">
-				<Search className="h-6 w-6 text-cyan-400" />
+				<Search className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
 				<h2 className="text-xl font-semibold">Track Order</h2>
 			</div>
 			{status.type === 'error' && <p className="text-red-400">{status.message}</p>}
 
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
-					<label htmlFor="track-rid" className="block text-sm font-medium text-gray-300">
+					<label htmlFor="track-rid" className={labelClass}>
 						Restaurant
 					</label>
 					<select
@@ -665,7 +681,7 @@ function OrderTracker() {
 						value={rid}
 						onChange={(e) => setRid(e.target.value)}
 						disabled={listStatus.type === 'loading'}
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+						className={inputClass}
 					>
 						<option value="">
 							{listStatus.type === 'loading'
@@ -685,7 +701,7 @@ function OrderTracker() {
 					)}
 				</div>
 				<div>
-					<label htmlFor="track-oid" className="block text-sm font-medium text-gray-300">
+					<label htmlFor="track-oid" className={labelClass}>
 						Order ID
 					</label>
 					<input
@@ -693,7 +709,7 @@ function OrderTracker() {
 						type="text"
 						value={oid}
 						onChange={(e) => setOid(e.target.value)}
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+						className={inputClass}
 					/>
 				</div>
 			</div>
@@ -702,25 +718,25 @@ function OrderTracker() {
 				type="button"
 				onClick={trackOrder}
 				disabled={status.type === 'loading'}
-				className="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
+				className="flex items-center gap-2 rounded-lg bg-gray-200 px-4 py-2 font-medium transition-colors hover:bg-gray-300 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
 			>
 				<Search size={18} />
 				{status.type === 'loading' ? 'Loading…' : 'Track Order'}
 			</button>
 
 			{order && (
-				<div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+				<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
 					<dl className="space-y-2 text-sm">
 						<div>
-							<dt className="font-medium text-gray-300">Order ID</dt>
-							<dd className="text-gray-400">{order.orderId}</dd>
+							<dt className="font-medium text-slate-600 dark:text-gray-300">Order ID</dt>
+							<dd className="text-slate-500 dark:text-gray-400">{order.orderId}</dd>
 						</div>
 						<div>
-							<dt className="font-medium text-gray-300">Restaurant ID</dt>
-							<dd className="text-gray-400">{order.restaurantId}</dd>
+							<dt className="font-medium text-slate-600 dark:text-gray-300">Restaurant ID</dt>
+							<dd className="text-slate-500 dark:text-gray-400">{order.restaurantId}</dd>
 						</div>
 						<div>
-							<dt className="font-medium text-gray-300">Status</dt>
+							<dt className="font-medium text-slate-600 dark:text-gray-300">Status</dt>
 							<dd>
 								<span
 									className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${orderStatusStyle(order.status)}`}
@@ -730,9 +746,9 @@ function OrderTracker() {
 							</dd>
 						</div>
 						<div>
-							<dt className="font-medium text-gray-300">Menu Items</dt>
+							<dt className="font-medium text-slate-600 dark:text-gray-300">Menu Items</dt>
 							<dd>
-								<ul className="list-disc pl-5 text-gray-400">
+								<ul className="list-disc pl-5 text-slate-500 dark:text-gray-400">
 									{order.menuItems.map((item) => (
 										<li key={item.menuItemId}>
 											{item.name} — {item.price}
@@ -767,10 +783,10 @@ function StepCard({
 		<div
 			className={`rounded-lg border p-5 transition-colors ${
 				done
-					? 'border-green-800 bg-green-950/20'
+					? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20'
 					: active
-						? 'border-cyan-700 bg-slate-800/60'
-						: 'border-slate-700 bg-slate-800/30'
+						? 'border-cyan-300 bg-cyan-50/50 dark:border-cyan-700 dark:bg-slate-800/60'
+						: 'border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/30'
 			}`}
 		>
 			<div className="mb-3 flex items-center gap-3">
@@ -780,7 +796,7 @@ function StepCard({
 							? 'bg-green-600 text-white'
 							: active
 								? 'bg-cyan-500 text-white'
-								: 'bg-slate-700 text-gray-400'
+								: 'bg-gray-200 text-gray-500 dark:bg-slate-700 dark:text-gray-400'
 					}`}
 				>
 					{done ? <Check size={14} /> : number}

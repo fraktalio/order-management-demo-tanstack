@@ -96,15 +96,15 @@ export const Route = createFileRoute('/restaurant')({
 
 function RestaurantPage() {
 	return (
-		<div className="min-h-screen bg-slate-900 p-8 text-white">
+		<div className="min-h-screen bg-gray-50 p-8 text-slate-900 dark:bg-slate-900 dark:text-white">
 			<div className="mx-auto max-w-3xl">
 				<div className="mb-8 flex items-center gap-3">
-					<UtensilsCrossed className="h-8 w-8 text-cyan-400" />
+					<UtensilsCrossed className="h-8 w-8 text-cyan-600 dark:text-cyan-400" />
 					<h1 className="text-3xl font-bold">Restaurant Management</h1>
 				</div>
 				<div className="space-y-12">
 					<CreateRestaurantForm />
-					<hr className="border-slate-700" />
+					<hr className="border-gray-200 dark:border-slate-700" />
 					<ChangeMenuForm />
 				</div>
 			</div>
@@ -126,6 +126,9 @@ const CUISINE_OPTIONS: RestaurantMenuCuisine[] = [
 
 type MenuItemRow = { name: string; price: string };
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
+
+const inputClass =
+	'mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-cyan-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800';
 
 function CreateRestaurantForm() {
 	const [rid, setRid] = useState('');
@@ -159,12 +162,19 @@ function CreateRestaurantForm() {
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
 			<h2 className="text-xl font-semibold">Create Restaurant</h2>
-			{status.type === 'success' && <p className="text-green-400">{status.message}</p>}
-			{status.type === 'error' && <p className="text-red-400">{status.message}</p>}
+			{status.type === 'success' && (
+				<p className="text-green-600 dark:text-green-400">{status.message}</p>
+			)}
+			{status.type === 'error' && (
+				<p className="text-red-600 dark:text-red-400">{status.message}</p>
+			)}
 
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
-					<label htmlFor="create-name" className="block text-sm font-medium text-gray-300">
+					<label
+						htmlFor="create-name"
+						className="block text-sm font-medium text-slate-600 dark:text-gray-300"
+					>
 						Restaurant Name
 					</label>
 					<input
@@ -173,11 +183,14 @@ function CreateRestaurantForm() {
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						required
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+						className={inputClass}
 					/>
 				</div>
 				<div>
-					<label htmlFor="create-id" className="block text-sm font-medium text-gray-300">
+					<label
+						htmlFor="create-id"
+						className="block text-sm font-medium text-slate-600 dark:text-gray-300"
+					>
 						Restaurant ID
 					</label>
 					<input
@@ -186,20 +199,23 @@ function CreateRestaurantForm() {
 						value={rid}
 						onChange={(e) => setRid(e.target.value)}
 						placeholder="auto-generated if empty"
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+						className={inputClass}
 					/>
 				</div>
 			</div>
 
 			<div>
-				<label htmlFor="create-cuisine" className="block text-sm font-medium text-gray-300">
+				<label
+					htmlFor="create-cuisine"
+					className="block text-sm font-medium text-slate-600 dark:text-gray-300"
+				>
 					Cuisine
 				</label>
 				<select
 					id="create-cuisine"
 					value={cuisine}
 					onChange={(e) => setCuisine(e.target.value as RestaurantMenuCuisine)}
-					className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+					className={inputClass}
 				>
 					{CUISINE_OPTIONS.map((c) => (
 						<option key={c} value={c}>
@@ -210,11 +226,16 @@ function CreateRestaurantForm() {
 			</div>
 
 			<fieldset className="space-y-2">
-				<legend className="text-sm font-medium text-gray-300">Menu Items</legend>
+				<legend className="text-sm font-medium text-slate-600 dark:text-gray-300">
+					Menu Items
+				</legend>
 				{menuItems.map((item, i) => (
 					<div key={i} className="flex items-end gap-2">
 						<div className="flex-1">
-							<label htmlFor={`create-item-name-${i}`} className="block text-xs text-gray-400">
+							<label
+								htmlFor={`create-item-name-${i}`}
+								className="block text-xs text-slate-500 dark:text-gray-400"
+							>
 								Name
 							</label>
 							<input
@@ -223,11 +244,14 @@ function CreateRestaurantForm() {
 								value={item.name}
 								onChange={(e) => updateItem(i, 'name', e.target.value)}
 								required
-								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+								className={inputClass}
 							/>
 						</div>
 						<div className="w-28">
-							<label htmlFor={`create-item-price-${i}`} className="block text-xs text-gray-400">
+							<label
+								htmlFor={`create-item-price-${i}`}
+								className="block text-xs text-slate-500 dark:text-gray-400"
+							>
 								Price
 							</label>
 							<input
@@ -236,14 +260,14 @@ function CreateRestaurantForm() {
 								value={item.price}
 								onChange={(e) => updateItem(i, 'price', e.target.value)}
 								required
-								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+								className={inputClass}
 							/>
 						</div>
 						<button
 							type="button"
 							onClick={() => setMenuItems((items) => items.filter((_, idx) => idx !== i))}
 							disabled={menuItems.length <= 1}
-							className="rounded-lg p-2 text-red-400 transition-colors hover:bg-slate-800 disabled:opacity-30"
+							className="rounded-lg p-2 text-red-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-red-400 dark:hover:bg-slate-800"
 							aria-label="Remove menu item"
 						>
 							<Trash2 size={18} />
@@ -253,7 +277,7 @@ function CreateRestaurantForm() {
 				<button
 					type="button"
 					onClick={() => setMenuItems((items) => [...items, { name: '', price: '' }])}
-					className="flex items-center gap-1 text-sm text-cyan-400 transition-colors hover:text-cyan-300"
+					className="flex items-center gap-1 text-sm text-cyan-600 transition-colors hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300"
 				>
 					<Plus size={16} /> Add Menu Item
 				</button>
@@ -262,7 +286,7 @@ function CreateRestaurantForm() {
 			<button
 				type="submit"
 				disabled={status.type === 'loading'}
-				className="rounded-lg bg-cyan-500 px-6 py-2 font-semibold transition-colors hover:bg-cyan-600 disabled:opacity-50"
+				className="rounded-lg bg-cyan-500 px-6 py-2 font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50"
 			>
 				{status.type === 'loading' ? 'Creating…' : 'Create Restaurant'}
 			</button>
@@ -321,12 +345,19 @@ function ChangeMenuForm() {
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
 			<h2 className="text-xl font-semibold">Change Restaurant Menu</h2>
-			{status.type === 'success' && <p className="text-green-400">{status.message}</p>}
-			{status.type === 'error' && <p className="text-red-400">{status.message}</p>}
+			{status.type === 'success' && (
+				<p className="text-green-600 dark:text-green-400">{status.message}</p>
+			)}
+			{status.type === 'error' && (
+				<p className="text-red-600 dark:text-red-400">{status.message}</p>
+			)}
 
 			<div className="flex items-end gap-2">
 				<div className="flex-1">
-					<label htmlFor="change-id" className="block text-sm font-medium text-gray-300">
+					<label
+						htmlFor="change-id"
+						className="block text-sm font-medium text-slate-600 dark:text-gray-300"
+					>
 						Restaurant ID
 					</label>
 					<input
@@ -335,30 +366,35 @@ function ChangeMenuForm() {
 						value={rid}
 						onChange={(e) => setRid(e.target.value)}
 						required
-						className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+						className={inputClass}
 					/>
 				</div>
 				<button
 					type="button"
 					onClick={loadRestaurant}
 					disabled={status.type === 'loading'}
-					className="rounded-lg bg-slate-700 px-4 py-2 font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
+					className="rounded-lg bg-gray-200 px-4 py-2 font-medium transition-colors hover:bg-gray-300 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
 				>
 					Load
 				</button>
 			</div>
 
-			{restaurant && <p className="text-sm text-gray-400">Loaded: {restaurant.name}</p>}
+			{restaurant && (
+				<p className="text-sm text-slate-500 dark:text-gray-400">Loaded: {restaurant.name}</p>
+			)}
 
 			<div>
-				<label htmlFor="change-cuisine" className="block text-sm font-medium text-gray-300">
+				<label
+					htmlFor="change-cuisine"
+					className="block text-sm font-medium text-slate-600 dark:text-gray-300"
+				>
 					Cuisine
 				</label>
 				<select
 					id="change-cuisine"
 					value={cuisine}
 					onChange={(e) => setCuisine(e.target.value as RestaurantMenuCuisine)}
-					className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+					className={inputClass}
 				>
 					{CUISINE_OPTIONS.map((c) => (
 						<option key={c} value={c}>
@@ -369,11 +405,16 @@ function ChangeMenuForm() {
 			</div>
 
 			<fieldset className="space-y-2">
-				<legend className="text-sm font-medium text-gray-300">Menu Items</legend>
+				<legend className="text-sm font-medium text-slate-600 dark:text-gray-300">
+					Menu Items
+				</legend>
 				{menuItems.map((item, i) => (
 					<div key={i} className="flex items-end gap-2">
 						<div className="flex-1">
-							<label htmlFor={`change-item-name-${i}`} className="block text-xs text-gray-400">
+							<label
+								htmlFor={`change-item-name-${i}`}
+								className="block text-xs text-slate-500 dark:text-gray-400"
+							>
 								Name
 							</label>
 							<input
@@ -382,11 +423,14 @@ function ChangeMenuForm() {
 								value={item.name}
 								onChange={(e) => updateItem(i, 'name', e.target.value)}
 								required
-								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+								className={inputClass}
 							/>
 						</div>
 						<div className="w-28">
-							<label htmlFor={`change-item-price-${i}`} className="block text-xs text-gray-400">
+							<label
+								htmlFor={`change-item-price-${i}`}
+								className="block text-xs text-slate-500 dark:text-gray-400"
+							>
 								Price
 							</label>
 							<input
@@ -395,14 +439,14 @@ function ChangeMenuForm() {
 								value={item.price}
 								onChange={(e) => updateItem(i, 'price', e.target.value)}
 								required
-								className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 focus:border-cyan-500 focus:outline-none"
+								className={inputClass}
 							/>
 						</div>
 						<button
 							type="button"
 							onClick={() => setMenuItems((items) => items.filter((_, idx) => idx !== i))}
 							disabled={menuItems.length <= 1}
-							className="rounded-lg p-2 text-red-400 transition-colors hover:bg-slate-800 disabled:opacity-30"
+							className="rounded-lg p-2 text-red-500 transition-colors hover:bg-gray-100 disabled:opacity-30 dark:text-red-400 dark:hover:bg-slate-800"
 							aria-label="Remove menu item"
 						>
 							<Trash2 size={18} />
@@ -412,7 +456,7 @@ function ChangeMenuForm() {
 				<button
 					type="button"
 					onClick={() => setMenuItems((items) => [...items, { name: '', price: '' }])}
-					className="flex items-center gap-1 text-sm text-cyan-400 transition-colors hover:text-cyan-300"
+					className="flex items-center gap-1 text-sm text-cyan-600 transition-colors hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300"
 				>
 					<Plus size={16} /> Add Menu Item
 				</button>
@@ -421,7 +465,7 @@ function ChangeMenuForm() {
 			<button
 				type="submit"
 				disabled={status.type === 'loading'}
-				className="rounded-lg bg-cyan-500 px-6 py-2 font-semibold transition-colors hover:bg-cyan-600 disabled:opacity-50"
+				className="rounded-lg bg-cyan-500 px-6 py-2 font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50"
 			>
 				{status.type === 'loading' ? 'Updating…' : 'Update Menu'}
 			</button>

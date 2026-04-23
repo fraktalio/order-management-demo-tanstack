@@ -128,17 +128,20 @@ function KitchenPage() {
 	const preparedOrders = orders.filter((o) => o.status === 'PREPARED');
 
 	return (
-		<div className="min-h-screen bg-slate-900 p-8 text-white">
+		<div className="min-h-screen bg-gray-50 p-8 text-slate-900 dark:bg-slate-900 dark:text-white">
 			<div className="mx-auto max-w-3xl">
 				<div className="mb-8 flex items-center gap-3">
-					<ChefHat className="h-8 w-8 text-cyan-400" />
+					<ChefHat className="h-8 w-8 text-cyan-600 dark:text-cyan-400" />
 					<h1 className="text-3xl font-bold">Kitchen Management</h1>
 				</div>
 
 				{/* Controls */}
 				<div className="mb-8 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<label htmlFor="auto-refresh" className="text-sm font-medium text-gray-300">
+						<label
+							htmlFor="auto-refresh"
+							className="text-sm font-medium text-slate-600 dark:text-gray-300"
+						>
 							Auto-refresh
 						</label>
 						<button
@@ -161,7 +164,7 @@ function KitchenPage() {
 					<button
 						onClick={loadOrders}
 						disabled={status.type === 'loading'}
-						className="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-600 disabled:opacity-50"
+						className="flex items-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-300 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
 					>
 						<RefreshCw size={16} className={status.type === 'loading' ? 'animate-spin' : ''} />
 						{status.type === 'loading' ? 'Refreshing…' : 'Refresh'}
@@ -239,17 +242,17 @@ function OrderCard({ order }: { order: OrderViewState }) {
 	return (
 		<dl className="flex-1 space-y-1 text-sm">
 			<div>
-				<dt className="inline font-medium text-gray-300">Order ID: </dt>
-				<dd className="inline text-gray-400">{order.orderId}</dd>
+				<dt className="inline font-medium text-slate-600 dark:text-gray-300">Order ID: </dt>
+				<dd className="inline text-slate-500 dark:text-gray-400">{order.orderId}</dd>
 			</div>
 			<div>
-				<dt className="inline font-medium text-gray-300">Restaurant ID: </dt>
-				<dd className="inline text-gray-400">{order.restaurantId}</dd>
+				<dt className="inline font-medium text-slate-600 dark:text-gray-300">Restaurant ID: </dt>
+				<dd className="inline text-slate-500 dark:text-gray-400">{order.restaurantId}</dd>
 			</div>
 			<div>
-				<dt className="font-medium text-gray-300">Menu Items</dt>
+				<dt className="font-medium text-slate-600 dark:text-gray-300">Menu Items</dt>
 				<dd>
-					<ul className="list-disc pl-5 text-gray-400">
+					<ul className="list-disc pl-5 text-slate-500 dark:text-gray-400">
 						{order.menuItems.map((item) => (
 							<li key={item.menuItemId}>
 								{item.name} — {item.price}

@@ -4,8 +4,11 @@ import { TanStackDevtools } from '@tanstack/react-devtools';
 
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { ThemeProvider } from '../components/ThemeProvider';
 
 import appCss from '../styles.css?url';
+
+const themeScript = `(function(){var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})()`;
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -36,11 +39,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		<html lang="en">
 			<head>
 				<HeadContent />
+				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 			</head>
-			<body>
-				<Header />
-				{children}
-				<Footer />
+			<body className="bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-white">
+				<ThemeProvider>
+					<Header />
+					{children}
+					<Footer />
+				</ThemeProvider>
 				<TanStackDevtools
 					config={{
 						position: 'bottom-right',
