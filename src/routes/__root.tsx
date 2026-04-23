@@ -3,6 +3,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { TanStackDevtools } from '@tanstack/react-devtools';
 
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 import appCss from '../styles.css?url';
 
@@ -39,6 +40,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<body>
 				<Header />
 				{children}
+				<Footer />
 				<TanStackDevtools
 					config={{
 						position: 'bottom-right',

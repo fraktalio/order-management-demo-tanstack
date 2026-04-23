@@ -1,14 +1,14 @@
 import { Link } from '@tanstack/react-router';
 
 import { useState } from 'react';
-import { Home, Menu, X, Play, UtensilsCrossed, ChefHat } from 'lucide-react';
+import { Home, Menu, X, Play, UtensilsCrossed, ChefHat, Github } from 'lucide-react';
 
 export default function Header() {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<>
-			<header className="flex items-center justify-between bg-gray-800 p-4 text-white shadow-lg">
+			<header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-700 bg-slate-800/95 p-4 text-white shadow-lg backdrop-blur-sm">
 				<button
 					onClick={() => setIsOpen(true)}
 					className="rounded-lg p-2 transition-colors hover:bg-gray-700"
@@ -16,12 +16,23 @@ export default function Header() {
 				>
 					<Menu size={24} />
 				</button>
-				<h1 className="text-xl font-semibold">
-					<Link to="/" className="flex items-center gap-2">
-						<img src="/f.webp" alt="Fraktalio Logo" className="h-10" />
-						<span className="text-4xl">{'{Restaurant}'}</span>
-					</Link>
-				</h1>
+				<div className="flex items-center gap-4">
+					<a
+						href="https://github.com/fraktalio/order-management-demo-tanstack"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="rounded-lg p-2 transition-colors hover:bg-gray-700"
+						aria-label="View source on GitHub"
+					>
+						<Github size={20} />
+					</a>
+					<h1 className="text-xl font-semibold">
+						<Link to="/" className="flex items-center gap-2">
+							<img src="/f.webp" alt="Fraktalio Logo" className="h-4" />
+							<span className="text-xl">{'{Restaurant}'}</span>
+						</Link>
+					</h1>
+				</div>
 			</header>
 
 			<aside
