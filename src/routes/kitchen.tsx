@@ -125,7 +125,17 @@ function KitchenPage() {
 	};
 
 	const paidOrders = orders.filter((o) => o.status === 'PAID');
-	const preparedOrders = orders.filter((o) => o.status === 'PREPARED');
+	const allPreparedOrders = orders.filter((o) => o.status === 'PREPARED');
+
+	const PAGE_SIZE = 10;
+	const [preparedPage, setPreparedPage] = useState(1);
+	// Reset to page 1 when the list changes
+	const preparedTotal = allPreparedOrders.length;
+	const totalPages = Math.max(1, Math.ceil(preparedTotal / PAGE_SIZE));
+	const visiblePrepared = allPreparedOrders.slice(
+		(preparedPage - 1) * PAGE_SIZE,
+		preparedPage * PAGE_SIZE,
+	);
 
 	return (
 		<div className="min-h-screen bg-gray-50 p-8 text-slate-900 dark:bg-slate-900 dark:text-white">
@@ -212,25 +222,50 @@ function KitchenPage() {
 				<section>
 					<h2 className="mb-4 text-xl font-semibold">
 						Prepared Orders
-						{preparedOrders.length > 0 && (
+						{preparedTotal > 0 && (
 							<span className="ml-2 inline-block rounded-full bg-green-900 px-2 py-0.5 text-xs text-green-200">
-								{preparedOrders.length}
+								{preparedTotal}
 							</span>
 						)}
 					</h2>
-					{preparedOrders.length === 0 ? (
+					{preparedTotal === 0 ? (
 						<p className="text-gray-500">No orders have been prepared</p>
 					) : (
-						<div className="space-y-3">
-							{preparedOrders.map((order) => (
-								<div
-									key={order.orderId}
-									className="rounded-lg border border-green-800 bg-green-900/20 p-4"
-								>
-									<OrderCard order={order} />
+						<>
+							<div className="space-y-3">
+								{visiblePrepared.map((order) => (
+									<div
+										key={order.orderId}
+										className="rounded-lg border border-green-800 bg-green-900/20 p-4"
+									>
+										<OrderCard order={order} />
+									</div>
+								))}
+							</div>
+
+							{/* Pagination */}
+							{totalPages > 1 && (
+								<div className="mt-4 flex items-center justify-between">
+									<button
+										onClick={() => setPreparedPage((p) => Math.max(1, p - 1))}
+										disabled={preparedPage === 1}
+										className="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-300 disabled:opacity-40 dark:bg-slate-700 dark:hover:bg-slate-600"
+									>
+										← Previous
+									</button>
+									<span className="text-sm text-slate-500 dark:text-gray-400">
+										Page {preparedPage} of {totalPages}
+									</span>
+									<button
+										onClick={() => setPreparedPage((p) => Math.min(totalPages, p + 1))}
+										disabled={preparedPage === totalPages}
+										className="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-300 disabled:opacity-40 dark:bg-slate-700 dark:hover:bg-slate-600"
+									>
+										Next →
+									</button>
 								</div>
-							))}
-						</div>
+							)}
+						</>
 					)}
 				</section>
 			</div>
