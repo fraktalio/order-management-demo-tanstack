@@ -49,13 +49,31 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 		);
 
 		if (orderResult.paymentRequired) {
-			// Step 2a: Wait for payment confirmation from the payment gateway
+			// Step 2a: Simulate sending a payment request to the gateway (demo — no real call)
+			await step.do(
+				'send-payment-request',
+				{ retries: { limit: 1, delay: '1 second' }, timeout: '5 seconds' },
+				async () => {
+					const totalAmount = menuItems.reduce((sum, item) => sum + parseFloat(item.price), 0);
+					console.log(
+						`[PaymentWorkflow] Sending payment request to gateway — orderId=${oid}, amount=${totalAmount.toFixed(2)}, items=${menuItems.length}`,
+					);
+					return {
+						orderId: oid,
+						amount: totalAmount.toFixed(2),
+						gateway: 'demo-gateway',
+						sent: true,
+					};
+				},
+			);
+
+			// Step 2b: Wait for payment confirmation from the payment gateway
 			const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
 				type: 'payment-received',
 				timeout: '1 hour',
 			});
 
-			// Step 3a: Mark order as paid or payment failed based on gateway response
+			// Step 3: Mark order as paid or payment failed based on gateway response
 			if (paymentEvent.payload.status === 'success') {
 				await step.do(
 					'mark-order-paid',

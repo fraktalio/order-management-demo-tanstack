@@ -262,14 +262,17 @@ The workflow steps:
 1. **Place Order** — calls `placeOrderHandler` to persist the order via event
    sourcing. The decider emits `PaymentInitiatedEvent` (total > 0) or
    `PaymentExemptedEvent` (free order)
-2. **If payment required** — pauses with `step.waitForEvent` until a payment
+2. **Send Payment Request** (demo) — simulates sending a payment request to an
+   external gateway by logging the order ID, total amount, and item count. No
+   real HTTP call is made; this step is a placeholder for a real integration
+3. **Await Payment** — pauses with `step.waitForEvent` until a payment
    confirmation (or rejection) arrives from a dummy payment gateway
-3. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
+4. **Mark Order Paid** — on successful payment, calls `markOrderPaidHandler`
    to record the payment in the event store
-4. **Mark Order Payment Failed** — on declined payment, calls
+5. **Mark Order Payment Failed** — on declined payment, calls
    `markOrderPaymentFailedHandler` to record the failure
-5. **If free order** — skips the payment gateway entirely and returns
-   immediately (the order is already paid from step 1)
+6. **If free order** — skips steps 2–5 entirely and returns immediately (the
+   order is already paid from step 1)
 
 Preparation is a separate concern — only the Kitchen page can mark a paid order
 as prepared, enforced by the `markOrderAsPreparedDecider` which throws
@@ -304,7 +307,14 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 		});
 
 		if (orderResult.paymentRequired) {
-			// Step 2a: Wait for payment confirmation from the payment gateway
+			// Step 2a: Simulate sending a payment request to the gateway (demo)
+			await step.do('send-payment-request', { ... }, async () => {
+				const totalAmount = menuItems.reduce((sum, item) => sum + parseFloat(item.price), 0);
+				console.log(`[PaymentWorkflow] Sending payment request — orderId=${oid}, amount=${totalAmount.toFixed(2)}`);
+				return { orderId: oid, amount: totalAmount.toFixed(2), gateway: 'demo-gateway', sent: true };
+			});
+
+			// Step 2b: Wait for payment confirmation from the payment gateway
 			const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
 				type: 'payment-received',
 				timeout: '1 hour',
