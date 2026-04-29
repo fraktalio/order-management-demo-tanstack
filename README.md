@@ -274,6 +274,8 @@ The workflow steps:
 6. **If free order** — skips steps 2–5 entirely and returns immediately (the
    order is already paid from step 1)
 
+![Workflow](workflow3.png)
+
 Preparation is a separate concern — only the Kitchen page can mark a paid order
 as prepared, enforced by the `markOrderAsPreparedDecider` which throws
 `OrderNotPaidError` if the order hasn't been paid.
@@ -285,52 +287,128 @@ simulating what an external payment gateway webhook would do in production.
 ```ts
 // src/application/workflows/paymentWorkflow.ts
 
-import { WorkflowEntrypoint, type WorkflowStep, type WorkflowEvent } from 'cloudflare:workers';
-import { withDb } from '@/infrastructure/db';
-import { placeOrderHandler } from '@/application/command-handlers/placeOrder';
-import { markOrderPaidHandler } from '@/application/command-handlers/markOrderPaid';
-import { markOrderPaymentFailedHandler } from '@/application/command-handlers/markOrderPaymentFailed';
-import { restaurantId, orderId, menuItemId } from '@/domain/api';
-
 export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 	async run(event: WorkflowEvent<OrderWorkflowParams>, step: WorkflowStep) {
 		const { restaurantId: rid, orderId: oid, menuItems } = event.payload;
 
-		// Step 1: Place the order — decider decides payment path based on total
-		const orderResult = await step.do('place-order', { ... }, async () => {
-			return withDb(this.env, async (sql) => {
-				const handler = placeOrderHandler(sql);
-				const events = await handler.handle({ kind: 'PlaceOrderCommand', ... });
-				const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
-				return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
-			});
-		});
-
+		// Step 1: Place the order via the domain command handler
+		const orderResult = await step.do(
+			'place-order',
+			{ retries: { limit: 3, delay: '1 second', backoff: 'exponential' }, timeout: '15 seconds' },
+			async () => {
+				return withDb(this.env, async (sql) => {
+					const handler = placeOrderHandler(sql);
+					const events = await handler.handle({
+						kind: 'PlaceOrderCommand',
+						restaurantId: restaurantId(rid),
+						orderId: orderId(oid),
+						menuItems: menuItems.map((item) => ({
+							menuItemId: menuItemId(item.menuItemId),
+							name: item.name,
+							price: item.price,
+						})),
+					});
+					const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
+					return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
+				});
+			},
+		);
+		// If payment is required, proceed with payment flow
 		if (orderResult.paymentRequired) {
-			// Step 2a: Simulate sending a payment request to the gateway (demo)
-			await step.do('send-payment-request', { ... }, async () => {
-				const totalAmount = menuItems.reduce((sum, item) => sum + parseFloat(item.price), 0);
-				console.log(`[PaymentWorkflow] Sending payment request — orderId=${oid}, amount=${totalAmount.toFixed(2)}`);
-				return { orderId: oid, amount: totalAmount.toFixed(2), gateway: 'demo-gateway', sent: true };
-			});
+			// Step 2: Simulate sending a payment request to the gateway (demo — no real call)
+			await step.do(
+				'send-payment-request',
+				{ retries: { limit: 1, delay: '1 second' }, timeout: '5 seconds' },
+				async () => {
+					const totalAmount = menuItems.reduce((sum, item) => sum + parseFloat(item.price), 0);
+					console.log(
+						`[PaymentWorkflow] Sending payment request to gateway — orderId=${oid}, amount=${totalAmount.toFixed(2)}, items=${menuItems.length}`,
+					);
+					return {
+						orderId: oid,
+						amount: totalAmount.toFixed(2),
+						gateway: 'demo-gateway',
+						sent: true,
+					};
+				},
+			);
 
-			// Step 2b: Wait for payment confirmation from the payment gateway
+			// Step 3: Wait for payment confirmation from the payment gateway
 			const paymentEvent = await step.waitForEvent<PaymentEvent>('await payment from gateway', {
 				type: 'payment-received',
 				timeout: '1 hour',
 			});
 
-			// Step 3a: Mark order as paid or payment failed
+			// Step 4a: Mark order as paid or payment failed based on gateway response
 			if (paymentEvent.payload.status === 'success') {
-				await step.do('mark-order-paid', { ... }, async () => { ... });
-				return { ...orderResult, finalStatus: 'paid' };
+				await step.do(
+					'mark-order-paid',
+					{
+						retries: { limit: 3, delay: '1 second', backoff: 'exponential' },
+						timeout: '15 seconds',
+					},
+					async () => {
+						return withDb(this.env, async (sql) => {
+							const handler = markOrderPaidHandler(sql);
+							await handler.handle({
+								kind: 'MarkOrderPaidCommand',
+								orderId: orderId(oid),
+							});
+							return { orderId: oid, status: 'paid' };
+						});
+					},
+				);
+
+				return {
+					orderId: orderResult.orderId,
+					restaurantId: orderResult.restaurantId,
+					payment: {
+						transactionId: paymentEvent.payload.transactionId,
+						amount: paymentEvent.payload.amount,
+						status: 'confirmed',
+					},
+					finalStatus: 'paid',
+				};
 			} else {
-				await step.do('mark-order-payment-failed', { ... }, async () => { ... });
-				return { ...orderResult, finalStatus: 'payment_failed' };
+				// Step 4b: Wait for payment confirmation from the payment gateway
+				await step.do(
+					'mark-order-payment-failed',
+					{
+						retries: { limit: 3, delay: '1 second', backoff: 'exponential' },
+						timeout: '15 seconds',
+					},
+					async () => {
+						return withDb(this.env, async (sql) => {
+							const handler = markOrderPaymentFailedHandler(sql);
+							await handler.handle({
+								kind: 'MarkOrderPaymentFailedCommand',
+								orderId: orderId(oid),
+								reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
+							});
+							return { orderId: oid, status: 'payment_failed' };
+						});
+					},
+				);
+
+				return {
+					orderId: orderResult.orderId,
+					restaurantId: orderResult.restaurantId,
+					payment: {
+						transactionId: paymentEvent.payload.transactionId,
+						amount: paymentEvent.payload.amount,
+						status: 'failed',
+					},
+					finalStatus: 'payment_failed',
+				};
 			}
 		} else {
 			// Free order — payment exempted by PlaceOrderCommand (emitted PaymentExemptedEvent)
-			return { ...orderResult, payment: null, finalStatus: 'paid' };
+			return {
+				orderId: orderResult.orderId,
+				restaurantId: orderResult.restaurantId,
+				payment: null,
+				finalStatus: 'payment_exempted',
+			};
 		}
 	}
 }
