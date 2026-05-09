@@ -543,7 +543,6 @@ pnpm format:check
 
 - [fmodel-decider](https://github.com/fraktalio/fmodel-decider) — DCB pattern library
 - [TanStack Start](https://tanstack.com/start) — Full-stack React framework
-- [Cloudflare Workers](https://developers.cloudflare.com/workers/) — Edge runtime
 - [Cloudflare Workflows](https://developers.cloudflare.com/workflows/) — Durable multi-step execution
 - [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) — Postgres connection pooling
 - [Event Modeling](https://eventmodeling.org) — Design methodology
