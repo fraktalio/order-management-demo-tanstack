@@ -439,7 +439,7 @@ command was already handled (the event already exists), the decider returns an
 empty array — no new events, no error. The `markOrderPaidDecider` and
 `markOrderPaymentFailedDecider` also enforce that `PaymentInitiatedEvent` must
 exist before payment can be marked — preventing invalid state transitions while
-keeping retries a silent no-op at the domain level.
+keeping retries a silent no-op at the domain level
 
 ## Project Structure
 
