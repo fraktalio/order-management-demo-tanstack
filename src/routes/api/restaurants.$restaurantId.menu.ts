@@ -13,16 +13,17 @@ export const Route = createFileRoute('/api/restaurants/$restaurantId/menu')({
 			PUT: async ({ request, params }) => {
 				const body = (await request.json()) as {
 					menu: ChangeRestaurantMenuCommand['menu'];
+					idempotencyKey?: string;
 				};
 				return handleCommand(() =>
 					withDb(env, (sql) => {
 						const handler = changeRestaurantMenuHandler(sql);
-						const command: ChangeRestaurantMenuCommand = {
+						return handler.handle({
 							kind: 'ChangeRestaurantMenuCommand',
 							restaurantId: restaurantId(params.restaurantId),
 							menu: body.menu,
-						};
-						return handler.handle(command);
+							idempotencyKey: body.idempotencyKey ?? crypto.randomUUID(),
+						});
 					}),
 				);
 			},

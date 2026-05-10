@@ -23,6 +23,7 @@ export type PaymentEvent = {
 export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 	async run(event: WorkflowEvent<OrderWorkflowParams>, step: WorkflowStep) {
 		const { restaurantId: rid, orderId: oid, menuItems } = event.payload;
+		const workflowId = event.instanceId ?? crypto.randomUUID();
 
 		// Step 1: Place the order via the domain command handler
 		const orderResult = await step.do(
@@ -40,6 +41,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 							name: item.name,
 							price: item.price,
 						})),
+						idempotencyKey: `${workflowId}:place-order`,
 					});
 					const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
 					return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
@@ -86,6 +88,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 							await handler.handle({
 								kind: 'MarkOrderPaidCommand',
 								orderId: orderId(oid),
+								idempotencyKey: `${workflowId}:mark-order-paid`,
 							});
 							return { orderId: oid, status: 'paid' };
 						});
@@ -117,6 +120,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 								kind: 'MarkOrderPaymentFailedCommand',
 								orderId: orderId(oid),
 								reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
+								idempotencyKey: `${workflowId}:mark-order-payment-failed`,
 							});
 							return { orderId: oid, status: 'payment_failed' };
 						});

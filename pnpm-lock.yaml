@@ -12,8 +12,8 @@ importers:
         specifier: ^1.13.8
         version: 1.32.3(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))(workerd@1.20260415.1)(wrangler@4.83.0)
       '@fraktalio/fmodel-decider':
-        specifier: jsr:^0.9.0
-        version: '@jsr/fraktalio__fmodel-decider@0.9.0'
+        specifier: jsr:^0.11.0
+        version: '@jsr/fraktalio__fmodel-decider@0.11.0'
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.2.2(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))
@@ -783,8 +783,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@jsr/fraktalio__fmodel-decider@0.9.0':
-    resolution: {integrity: sha512-OhfwQ8DNORwmfCkjgqd18IuUik4ouGVDyM84ppqhE2GgrxG8M3AGo8Rn5JvgegABjaieKcBxoWBCKim0bZLq7Q==, tarball: https://npm.jsr.io/~/11/@jsr/fraktalio__fmodel-decider/0.9.0.tgz}
+  '@jsr/fraktalio__fmodel-decider@0.11.0':
+    resolution: {integrity: sha512-GE22ObmVxZ2jhiSa4Sn0xmFnzxS/emK7iOX8IcK4gUX7x7VqGMGjxDNB5lHVFIFToC/Xnu72aXBRv5WQ9znokQ==, tarball: https://npm.jsr.io/~/11/@jsr/fraktalio__fmodel-decider/0.11.0.tgz}
 
   '@jsr/std__ulid@1.0.0':
     resolution: {integrity: sha512-RvVolUwRoFtoSuYZROBmhCYEIuI4xsxeHjGGbJQZVDCBnDBJwfm16vOJyE1Va9+BnTl1iW7o1nCloBI+EQAWVg==, tarball: https://npm.jsr.io/~/11/@jsr/std__ulid/1.0.0.tgz}
@@ -2857,7 +2857,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@jsr/fraktalio__fmodel-decider@0.9.0':
+  '@jsr/fraktalio__fmodel-decider@0.11.0':
     dependencies:
       '@jsr/std__ulid': 1.0.0
 

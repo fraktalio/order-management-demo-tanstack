@@ -14,17 +14,18 @@ export const Route = createFileRoute('/api/restaurants/$restaurantId/orders')({
 				const body = (await request.json()) as {
 					orderId?: string;
 					menuItems: PlaceOrderCommand['menuItems'];
+					idempotencyKey?: string;
 				};
 				return handleCommand(() =>
 					withDb(env, (sql) => {
 						const handler = placeOrderHandler(sql);
-						const command: PlaceOrderCommand = {
+						return handler.handle({
 							kind: 'PlaceOrderCommand',
 							restaurantId: restaurantId(params.restaurantId),
 							orderId: orderId(body.orderId ?? crypto.randomUUID()),
 							menuItems: body.menuItems,
-						};
-						return handler.handle(command);
+							idempotencyKey: body.idempotencyKey ?? crypto.randomUUID(),
+						});
 					}),
 				);
 			},

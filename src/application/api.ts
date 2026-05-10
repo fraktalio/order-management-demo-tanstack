@@ -2,6 +2,7 @@
  * Shared helpers for API route handlers.
  */
 
+import { IdempotencyKeyMismatchError } from '@fraktalio/fmodel-decider';
 import { DomainError } from '@/domain/api.ts';
 
 /** Standard JSON response */
@@ -13,6 +14,9 @@ export async function handleCommand<T>(fn: () => Promise<T>): Promise<Response> 
 		const result = await fn();
 		return json(result, 201);
 	} catch (error) {
+		if (error instanceof IdempotencyKeyMismatchError) {
+			return json({ error: error.message }, 422);
+		}
 		if (error instanceof DomainError) {
 			return json({ error: error.message }, 409);
 		}

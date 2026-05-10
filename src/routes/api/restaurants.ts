@@ -15,17 +15,18 @@ export const Route = createFileRoute('/api/restaurants')({
 					restaurantId?: string;
 					name: string;
 					menu: CreateRestaurantCommand['menu'];
+					idempotencyKey?: string;
 				};
 				return handleCommand(() =>
 					withDb(env, (sql) => {
 						const handler = createRestaurantHandler(sql);
-						const command: CreateRestaurantCommand = {
+						return handler.handle({
 							kind: 'CreateRestaurantCommand',
 							restaurantId: restaurantId(body.restaurantId ?? crypto.randomUUID()),
 							name: body.name,
 							menu: body.menu,
-						};
-						return handler.handle(command);
+							idempotencyKey: body.idempotencyKey ?? crypto.randomUUID(),
+						});
 					}),
 				);
 			},

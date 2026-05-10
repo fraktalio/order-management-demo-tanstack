@@ -1,5 +1,9 @@
 import type postgres from 'postgres';
-import { PostgresEventRepository, type EventMetadata } from '@fraktalio/fmodel-decider';
+import {
+	PostgresEventRepository,
+	type EventMetadata,
+	type CommandMetadata,
+} from '@fraktalio/fmodel-decider';
 import { createSqlClient } from '../pg-client-adapter.ts';
 import { createRestaurantDecider } from '@/domain/deciders/createRestaurant.ts';
 import { changeRestaurantMenuDecider } from '@/domain/deciders/changeRestaurantMenu.ts';
@@ -61,11 +65,13 @@ export class AllDeciderRepository {
 		});
 	}
 
-	execute(command: Command): Promise<readonly (Event & EventMetadata)[]> {
+	execute(command: Command & CommandMetadata): Promise<readonly (Event & EventMetadata)[]> {
 		return this.repository.execute(command, this.combinedDecider);
 	}
 
-	executeBatch(commands: readonly Command[]): Promise<readonly (Event & EventMetadata)[]> {
+	executeBatch(
+		commands: readonly (Command & CommandMetadata)[],
+	): Promise<readonly (Event & EventMetadata)[]> {
 		return this.repository.executeBatch(commands, this.combinedDecider);
 	}
 }

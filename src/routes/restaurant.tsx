@@ -43,6 +43,7 @@ const createRestaurant = createServerFn({ method: 'POST' })
 						price: item.price,
 					})),
 				},
+				idempotencyKey: crypto.randomUUID(),
 			});
 		});
 	});
@@ -70,6 +71,7 @@ const changeMenu = createServerFn({ method: 'POST' })
 						price: item.price,
 					})),
 				},
+				idempotencyKey: crypto.randomUUID(),
 			});
 		});
 	});

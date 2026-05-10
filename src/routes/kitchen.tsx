@@ -49,6 +49,7 @@ const markAsPrepared = createServerFn({ method: 'POST' })
 			return handler.handle({
 				kind: 'MarkOrderAsPreparedCommand',
 				orderId: orderId(oid),
+				idempotencyKey: crypto.randomUUID(),
 			});
 		});
 	});
