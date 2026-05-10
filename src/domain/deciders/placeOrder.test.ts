@@ -1,7 +1,12 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { placeOrderDecider } from '../deciders/placeOrder.ts';
-import { RestaurantNotFoundError, MenuItemsNotAvailableError, menuItemId } from '../api.ts';
+import {
+	RestaurantNotFoundError,
+	MenuItemsNotAvailableError,
+	OrderAlreadyExistsError,
+	menuItemId,
+} from '../api.ts';
 import {
 	rId,
 	oId,
@@ -65,7 +70,7 @@ describe('placeOrderDecider', () => {
 			.thenThrows((e: Error) => e instanceof RestaurantNotFoundError);
 	});
 
-	it('ignores duplicate order (idempotent)', () => {
+	it('throws when order already exists', () => {
 		spec
 			.given([restaurantCreated, orderPlaced])
 			.when({
@@ -74,7 +79,7 @@ describe('placeOrderDecider', () => {
 				orderId: oId,
 				menuItems: menu.menuItems,
 			})
-			.then([]); // No new events — already placed
+			.thenThrows((e: Error) => e instanceof OrderAlreadyExistsError);
 	});
 
 	it('throws when menu items are not available', () => {

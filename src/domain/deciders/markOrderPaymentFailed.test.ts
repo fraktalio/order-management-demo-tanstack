@@ -1,7 +1,12 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderPaymentFailedDecider } from '../deciders/markOrderPaymentFailed.ts';
-import { OrderNotFoundError, OrderAlreadyPaidError, PaymentNotInitiatedError } from '../api.ts';
+import {
+	OrderNotFoundError,
+	OrderAlreadyPaidError,
+	OrderPaymentAlreadyFailedError,
+	PaymentNotInitiatedError,
+} from '../api.ts';
 import { oId, orderPlaced, paymentInitiated, orderPaid, orderPaymentFailed } from '../fixtures.ts';
 
 describe('markOrderPaymentFailedDecider', () => {
@@ -28,11 +33,11 @@ describe('markOrderPaymentFailedDecider', () => {
 			.thenThrows((e: Error) => e instanceof PaymentNotInitiatedError);
 	});
 
-	it('ignores duplicate failure (idempotent)', () => {
+	it('throws when payment already failed', () => {
 		spec
 			.given([orderPlaced, paymentInitiated, orderPaymentFailed])
 			.when({ kind: 'MarkOrderPaymentFailedCommand', orderId: oId, reason: 'Insufficient funds' })
-			.then([]);
+			.thenThrows((e: Error) => e instanceof OrderPaymentAlreadyFailedError);
 	});
 
 	it('throws when order is already paid', () => {

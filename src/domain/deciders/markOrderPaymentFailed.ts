@@ -5,6 +5,7 @@ import {
 	OrderNotFoundError,
 	type OrderPaidEvent,
 	type OrderPaymentFailedEvent,
+	OrderPaymentAlreadyFailedError,
 	type PaymentInitiatedEvent,
 	PaymentNotInitiatedError,
 	type RestaurantOrderPlacedEvent,
@@ -48,7 +49,7 @@ export const markOrderPaymentFailedDecider: DcbDecider<
 					case 'PAID':
 						throw new OrderAlreadyPaidError(command.orderId);
 					case 'PAYMENT_FAILED':
-						return []; // Idempotent: duplicate command is a no-op
+						throw new OrderPaymentAlreadyFailedError(command.orderId);
 					default: {
 						const _exhaustiveCheck: never = currentState.status;
 						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);

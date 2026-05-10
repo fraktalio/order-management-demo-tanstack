@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderPaidDecider } from '../deciders/markOrderPaid.ts';
-import { OrderNotFoundError, PaymentNotInitiatedError } from '../api.ts';
+import { OrderNotFoundError, PaymentNotInitiatedError, OrderAlreadyPaidError } from '../api.ts';
 import { oId, orderPlaced, paymentInitiated, orderPaid } from '../fixtures.ts';
 
 describe('markOrderPaidDecider', () => {
@@ -28,10 +28,10 @@ describe('markOrderPaidDecider', () => {
 			.thenThrows((e: Error) => e instanceof PaymentNotInitiatedError);
 	});
 
-	it('ignores duplicate payment (idempotent)', () => {
+	it('throws when order is already paid', () => {
 		spec
 			.given([orderPlaced, paymentInitiated, orderPaid])
 			.when({ kind: 'MarkOrderPaidCommand', orderId: oId })
-			.then([]);
+			.thenThrows((e: Error) => e instanceof OrderAlreadyPaidError);
 	});
 });

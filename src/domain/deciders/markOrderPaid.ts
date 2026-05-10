@@ -1,6 +1,7 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderPaidCommand,
+	OrderAlreadyPaidError,
 	OrderNotFoundError,
 	type OrderPaidEvent,
 	type PaymentInitiatedEvent,
@@ -38,7 +39,7 @@ export const markOrderPaidDecider: DcbDecider<
 							},
 						];
 					case 'PAID':
-						return []; // Idempotent: duplicate command is a no-op
+						throw new OrderAlreadyPaidError(command.orderId);
 					default: {
 						const _exhaustiveCheck: never = currentState.status;
 						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);

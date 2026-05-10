@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { DeciderEventSourcedSpec as DeciderSpecification } from '../test-specs.ts';
 import { markOrderAsPreparedDecider } from '../deciders/markOrderAsPrepared.ts';
-import { OrderNotFoundError, OrderNotPaidError } from '../api.ts';
+import { OrderNotFoundError, OrderNotPaidError, OrderAlreadyPreparedError } from '../api.ts';
 import { oId, orderPlaced, orderPaid, paymentExempted, orderPrepared } from '../fixtures.ts';
 
 describe('markOrderAsPreparedDecider', () => {
@@ -35,10 +35,10 @@ describe('markOrderAsPreparedDecider', () => {
 			.thenThrows((e: Error) => e instanceof OrderNotPaidError);
 	});
 
-	it('ignores duplicate prepare (idempotent)', () => {
+	it('throws when order is already prepared', () => {
 		spec
 			.given([orderPlaced, orderPaid, orderPrepared])
 			.when({ kind: 'MarkOrderAsPreparedCommand', orderId: oId })
-			.then([]); // No new events — already prepared
+			.thenThrows((e: Error) => e instanceof OrderAlreadyPreparedError);
 	});
 });

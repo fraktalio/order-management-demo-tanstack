@@ -1,6 +1,7 @@
 import { DcbDecider } from '@fraktalio/fmodel-decider';
 import {
 	type MarkOrderAsPreparedCommand,
+	OrderAlreadyPreparedError,
 	OrderNotFoundError,
 	OrderNotPaidError,
 	type OrderPaidEvent,
@@ -40,7 +41,7 @@ export const markOrderAsPreparedDecider: DcbDecider<
 							},
 						];
 					case 'PREPARED':
-						return []; // Idempotent: duplicate command is a no-op
+						throw new OrderAlreadyPreparedError(command.orderId);
 					default: {
 						const _exhaustiveCheck: never = currentState.status;
 						throw new Error(`Unexpected status: ${_exhaustiveCheck}`);

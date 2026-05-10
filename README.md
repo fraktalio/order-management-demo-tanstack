@@ -69,17 +69,19 @@ the same way.
 ### Event Repository (PostgreSQL)
 
 A production-ready event-sourced repository using PostgreSQL with optimistic
-locking, flexible querying, and type-safe tag-based indexing.
+locking, flexible querying, type-safe tag-based indexing, and built-in
+idempotency.
 
 The storage layout uses the `dcb` schema with these structures:
 
-| Structure                    | Description                                                           |
-| ---------------------------- | --------------------------------------------------------------------- |
-| `dcb.events`                 | Primary event storage (id, type, data as bytea, tags, created_at)     |
-| `dcb.event_tags`             | Tag index — maps `(tag, event_id)` for fast tag-based lookups         |
-| `conditional_append`         | Atomic conflict check + append with optimistic locking via `after_id` |
-| `select_events_by_tags`      | Full-replay event loading by tag-based query tuples                   |
-| `select_last_events_by_tags` | Idempotent (last-event) loading per query group                       |
+| Structure                    | Description                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `dcb.events`                 | Primary event storage (id, type, data as bytea, tags, idempotency_key, created_at) |
+| `dcb.event_tags`             | Tag index — maps `(tag, event_id)` for fast tag-based lookups                |
+| `dcb.idempotency_keys`       | Tracks processed idempotency keys with their command kind                    |
+| `conditional_append`         | Atomic conflict check + append with optimistic locking via `after_id`        |
+| `select_events_by_tags`      | Full-replay event loading by tag-based query tuples                          |
+| `select_last_events_by_tags` | Idempotent (last-event) loading per query group                              |
 
 Event data is stored once as bytea; the `event_tags` table provides secondary
 indexing. The repository automatically extracts tags from event `tagFields`
@@ -131,8 +133,39 @@ an existing one.
 // Wire a decider to its sliced repository and handle a command
 const repository = createRestaurantRepository(sql);
 const handler = new EventSourcedCommandHandler(createRestaurantDecider, repository);
-const events = await handler.handle(createRestaurantCommand);
+const events = await handler.handle({
+	...createRestaurantCommand,
+	idempotencyKey: crypto.randomUUID(),
+});
 ```
+
+## Idempotency
+
+Every command requires an `idempotencyKey` (enforced by `CommandMetadata` at the
+handler level). The key is stored alongside events in the `dcb.events` table and
+tracked in `dcb.idempotency_keys`. When a command is retried with the same key,
+the repository returns the previously stored events instead of re-executing the
+decider — making retries safe and transparent.
+
+Deciders themselves are **not** idempotency-aware. They enforce strict domain
+invariants and throw errors for invalid state transitions (e.g.,
+`OrderAlreadyExistsError`, `OrderAlreadyPaidError`). True duplicate handling
+happens at the infrastructure level via the idempotency key.
+
+### Key Generation Strategy
+
+| Scenario                                          | Recommended key                  |
+| ------------------------------------------------- | -------------------------------- |
+| Durable execution (Cloudflare Workflows, Temporal) | `workflowId:stepName`           |
+| HTTP API with client retry                         | Client-generated UUID per request |
+| One-shot fire-and-forget                           | `crypto.randomUUID()`           |
+
+### Error Handling
+
+| Error                          | Meaning                                                    |
+| ------------------------------ | ---------------------------------------------------------- |
+| `IdempotencyKeyMismatchError`  | Reused a key with a different command kind (caller bug)    |
+| Domain errors (e.g., `OrderAlreadyPaidError`) | Command is invalid for current state — not a retry |
 
 ## Specification by Example (Given/When/Then)
 
@@ -242,10 +275,12 @@ to external signals, and handles compensating actions on failure.
 
 This demo includes a `PaymentWorkflow` that orchestrates the order and payment
 lifecycle as a single durable, multi-step execution. The workflow itself is
-intentionally simple — it just wraps two independent, idempotent command handler
+intentionally simple — it just wraps two independent command handler
 slices (`placeOrder` and `markOrderPaid`/`markOrderPaymentFailed`) and
-coordinates them with a `waitForEvent` pause in between. There is no complex logic; the domain deciders handle all the
-invariants and idempotency, so the workflow is purely orchestration.
+coordinates them with a `waitForEvent` pause in between. Each step uses a
+deterministic idempotency key (`workflowId:stepName`) so retries are safe at
+the infrastructure level. The domain deciders handle all the invariants, and
+the workflow is purely orchestration.
 
 The `PlaceOrderCommand` itself decides the payment path: if the order total is
 greater than zero, it emits `PaymentInitiatedEvent` and the workflow waits for
@@ -290,6 +325,7 @@ simulating what an external payment gateway webhook would do in production.
 export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 	async run(event: WorkflowEvent<OrderWorkflowParams>, step: WorkflowStep) {
 		const { restaurantId: rid, orderId: oid, menuItems } = event.payload;
+		const workflowId = event.instanceId ?? crypto.randomUUID();
 
 		// Step 1: Place the order via the domain command handler
 		const orderResult = await step.do(
@@ -307,6 +343,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 							name: item.name,
 							price: item.price,
 						})),
+						idempotencyKey: `${workflowId}:place-order`,
 					});
 					const paymentRequired = events.some((e) => e.kind === 'PaymentInitiatedEvent');
 					return { orderId: oid, restaurantId: rid, status: 'placed', paymentRequired };
@@ -353,6 +390,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 							await handler.handle({
 								kind: 'MarkOrderPaidCommand',
 								orderId: orderId(oid),
+								idempotencyKey: `${workflowId}:mark-order-paid`,
 							});
 							return { orderId: oid, status: 'paid' };
 						});
@@ -370,7 +408,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 					finalStatus: 'paid',
 				};
 			} else {
-				// Step 4b: Wait for payment confirmation from the payment gateway
+				// Step 4b: Mark order payment as failed
 				await step.do(
 					'mark-order-payment-failed',
 					{
@@ -384,6 +422,7 @@ export class PaymentWorkflow extends WorkflowEntrypoint<Env> {
 								kind: 'MarkOrderPaymentFailedCommand',
 								orderId: orderId(oid),
 								reason: `Payment failed — transaction ${paymentEvent.payload.transactionId}`,
+								idempotencyKey: `${workflowId}:mark-order-payment-failed`,
 							});
 							return { orderId: oid, status: 'payment_failed' };
 						});
@@ -432,14 +471,18 @@ without a distributed transaction. Cloudflare
 because they cannot atomically commit both your side effect and the step
 completion together.
 
-In this demo, the DCB event store provides a natural solution. The
-`placeOrderDecider`, `markOrderPaidDecider`, and
-`markOrderPaymentFailedDecider` check the event stream before deciding: if the
-command was already handled (the event already exists), the decider returns an
-empty array — no new events, no error. The `markOrderPaidDecider` and
-`markOrderPaymentFailedDecider` also enforce that `PaymentInitiatedEvent` must
-exist before payment can be marked — preventing invalid state transitions while
-keeping retries a silent no-op at the domain level
+In this demo, the DCB event store provides a natural solution via
+**idempotency keys**. Each workflow step uses a deterministic key derived from
+the workflow instance ID and step name (e.g., `${workflowId}:place-order`).
+When a step is retried, the repository recognizes the duplicate key and returns
+the previously stored events — no new events are appended, no error is thrown.
+The decider is never re-invoked for a true retry.
+
+This is distinct from domain-level validation: if a *different* command (with a
+different idempotency key) attempts an invalid state transition, the decider
+throws a proper domain error (e.g., `OrderAlreadyExistsError`,
+`OrderAlreadyPaidError`). The separation is clean — infrastructure handles
+retries, the domain enforces invariants.
 
 ## Project Structure
 
@@ -461,6 +504,7 @@ src/
 │   ├── db.ts                 # withDb(env, fn) — Postgres.js connection lifecycle
 │   ├── pg-client-adapter.ts  # Adapts postgres.js to fmodel-decider SqlClient
 │   ├── dcb_schema.sql        # PostgreSQL DCB schema (run once)
+│   ├── dcb_schema_migration_idempotency.sql  # Migration: adds idempotency support
 │   └── repositories/         # PostgresEventRepository per use case
 ├── components/               # Shared React components (Header, etc.)
 ├── routes/                   # File-based routes (TanStack Router)
@@ -504,6 +548,11 @@ vite.config.ts                # Vite + Cloudflare + Tailwind config
    This runs Postgres 17 and auto-applies `src/infrastructure/dcb_schema.sql`
    on first boot. Credentials match `wrangler.jsonc`:
    `postgres://ivan:password@localhost:5432/postgres`
+
+   > **Upgrading from an older schema?** Run
+   > `src/infrastructure/dcb_schema_migration_idempotency.sql` against your
+   > existing database to add the `idempotency_key` column and
+   > `dcb.idempotency_keys` table. Or `docker compose down -v` to start fresh.
 
 3. Start the dev server:
 
