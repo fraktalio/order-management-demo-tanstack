@@ -74,14 +74,14 @@ idempotency.
 
 The storage layout uses the `dcb` schema with these structures:
 
-| Structure                    | Description                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------- |
+| Structure                    | Description                                                                        |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
 | `dcb.events`                 | Primary event storage (id, type, data as bytea, tags, idempotency_key, created_at) |
-| `dcb.event_tags`             | Tag index — maps `(tag, event_id)` for fast tag-based lookups                |
-| `dcb.idempotency_keys`       | Tracks processed idempotency keys with their command kind                    |
-| `conditional_append`         | Atomic conflict check + append with optimistic locking via `after_id`        |
-| `select_events_by_tags`      | Full-replay event loading by tag-based query tuples                          |
-| `select_last_events_by_tags` | Idempotent (last-event) loading per query group                              |
+| `dcb.event_tags`             | Tag index — maps `(tag, event_id)` for fast tag-based lookups                      |
+| `dcb.idempotency_keys`       | Tracks processed idempotency keys with their command kind                          |
+| `conditional_append`         | Atomic conflict check + append with optimistic locking via `after_id`              |
+| `select_events_by_tags`      | Full-replay event loading by tag-based query tuples                                |
+| `select_last_events_by_tags` | Idempotent (last-event) loading per query group                                    |
 
 Event data is stored once as bytea; the `event_tags` table provides secondary
 indexing. The repository automatically extracts tags from event `tagFields`
@@ -154,18 +154,18 @@ happens at the infrastructure level via the idempotency key.
 
 ### Key Generation Strategy
 
-| Scenario                                          | Recommended key                  |
-| ------------------------------------------------- | -------------------------------- |
-| Durable execution (Cloudflare Workflows, Temporal) | `workflowId:stepName`           |
+| Scenario                                           | Recommended key                   |
+| -------------------------------------------------- | --------------------------------- |
+| Durable execution (Cloudflare Workflows, Temporal) | `workflowId:stepName`             |
 | HTTP API with client retry                         | Client-generated UUID per request |
-| One-shot fire-and-forget                           | `crypto.randomUUID()`           |
+| One-shot fire-and-forget                           | `crypto.randomUUID()`             |
 
 ### Error Handling
 
-| Error                          | Meaning                                                    |
-| ------------------------------ | ---------------------------------------------------------- |
-| `IdempotencyKeyMismatchError`  | Reused a key with a different command kind (caller bug)    |
-| Domain errors (e.g., `OrderAlreadyPaidError`) | Command is invalid for current state — not a retry |
+| Error                                         | Meaning                                                 |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `IdempotencyKeyMismatchError`                 | Reused a key with a different command kind (caller bug) |
+| Domain errors (e.g., `OrderAlreadyPaidError`) | Command is invalid for current state — not a retry      |
 
 ## Specification by Example (Given/When/Then)
 
@@ -478,7 +478,7 @@ When a step is retried, the repository recognizes the duplicate key and returns
 the previously stored events — no new events are appended, no error is thrown.
 The decider is never re-invoked for a true retry.
 
-This is distinct from domain-level validation: if a *different* command (with a
+This is distinct from domain-level validation: if a _different_ command (with a
 different idempotency key) attempts an invalid state transition, the decider
 throws a proper domain error (e.g., `OrderAlreadyExistsError`,
 `OrderAlreadyPaidError`). The separation is clean — infrastructure handles
