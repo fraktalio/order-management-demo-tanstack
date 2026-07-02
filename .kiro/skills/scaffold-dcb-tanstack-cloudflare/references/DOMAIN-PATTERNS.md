@@ -96,9 +96,7 @@ Rules:
 
 ```typescript
 export type Event =
-	| RestaurantCreatedEvent
-	| RestaurantMenuChangedEvent
-	| RestaurantOrderPlacedEvent;
+	RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent;
 
 export type RestaurantCreatedEvent = TypeSafeEventShape<
 	{

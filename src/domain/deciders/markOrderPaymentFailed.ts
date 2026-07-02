@@ -12,11 +12,7 @@ import {
 } from '../api.ts';
 
 type MarkOrderPaymentFailedStatus =
-	| 'NOT_FOUND'
-	| 'PLACED'
-	| 'PAYMENT_INITIATED'
-	| 'PAID'
-	| 'PAYMENT_FAILED';
+	'NOT_FOUND' | 'PLACED' | 'PAYMENT_INITIATED' | 'PAID' | 'PAYMENT_FAILED';
 
 type MarkOrderPaymentFailedState = {
 	readonly status: MarkOrderPaymentFailedStatus;

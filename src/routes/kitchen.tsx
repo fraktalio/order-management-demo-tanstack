@@ -42,7 +42,7 @@ const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 });
 
 const markAsPrepared = createServerFn({ method: 'POST' })
-	.inputValidator((input: string) => input)
+	.validator((input: string) => input)
 	.handler(async ({ data: oid }) => {
 		return withDb(env, (sql) => {
 			const handler = markOrderAsPreparedHandler(sql);

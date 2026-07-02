@@ -96,13 +96,7 @@ export type MenuItemPrice = string;
 export type OrderStatus = 'NOT_CREATED' | 'CREATED' | 'PAID' | 'PAYMENT_FAILED' | 'PREPARED';
 
 export type RestaurantMenuCuisine =
-	| 'GENERAL'
-	| 'SERBIAN'
-	| 'ITALIAN'
-	| 'MEXICAN'
-	| 'CHINESE'
-	| 'INDIAN'
-	| 'FRENCH';
+	'GENERAL' | 'SERBIAN' | 'ITALIAN' | 'MEXICAN' | 'CHINESE' | 'INDIAN' | 'FRENCH';
 
 export type MenuItem = {
 	readonly menuItemId: MenuItemId;

@@ -22,14 +22,14 @@ import {
 // ─── Server Functions ───────────────────────────────────────────────
 
 const startOrderWorkflow = createServerFn({ method: 'POST' })
-	.inputValidator((input: OrderWorkflowParams) => input)
+	.validator((input: OrderWorkflowParams) => input)
 	.handler(async ({ data }) => {
 		const instance = await env.MY_WORKFLOW.create({ params: data });
 		return { instanceId: instance.id };
 	});
 
 const getWorkflowStatus = createServerFn({ method: 'POST' })
-	.inputValidator((id: string) => id)
+	.validator((id: string) => id)
 	.handler(async ({ data: id }) => {
 		const instance = await env.MY_WORKFLOW.get(id);
 		const status = await instance.status();
@@ -48,7 +48,7 @@ const getWorkflowStatus = createServerFn({ method: 'POST' })
 	});
 
 const sendPaymentEvent = createServerFn({ method: 'POST' })
-	.inputValidator((input: { instanceId: string; payment: PaymentEvent }) => input)
+	.validator((input: { instanceId: string; payment: PaymentEvent }) => input)
 	.handler(async ({ data }) => {
 		const instance = await env.MY_WORKFLOW.get(data.instanceId);
 		await instance.sendEvent({ type: 'payment-received', payload: data.payment });
@@ -75,7 +75,7 @@ const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () 
 });
 
 const fetchOrderByWorkflow = createServerFn({ method: 'POST' })
-	.inputValidator((input: { orderId: string; restaurantId: string }) => input)
+	.validator((input: { orderId: string; restaurantId: string }) => input)
 	.handler(async ({ data }) => {
 		return withDb(env, async (sql) => {
 			const rows = await sql.unsafe<{ data: Buffer }[]>(

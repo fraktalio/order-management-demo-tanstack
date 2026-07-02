@@ -91,9 +91,7 @@ Using `TypeSafeEventShape` with `tagFields`:
 
 ```typescript
 export type Event =
-	| RestaurantCreatedEvent
-	| RestaurantMenuChangedEvent
-	| RestaurantOrderPlacedEvent;
+	RestaurantCreatedEvent | RestaurantMenuChangedEvent | RestaurantOrderPlacedEvent;
 
 export type RestaurantCreatedEvent = TypeSafeEventShape<
 	{
@@ -258,9 +256,7 @@ export const entityView: Projection<EntityViewState | null, EntityEvent> = new P
 	(currentState, event) => {
 		switch (event.kind) {
 			case 'EntityCreatedEvent':
-				return {
-					/* create state from event fields */
-				};
+				return {/* create state from event fields */};
 			case 'EntityUpdatedEvent':
 				return currentState !== null ? { ...currentState /* update fields */ } : currentState;
 			default: {

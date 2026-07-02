@@ -26,7 +26,7 @@ type CreateRestaurantInput = {
 };
 
 const createRestaurant = createServerFn({ method: 'POST' })
-	.inputValidator((input: CreateRestaurantInput) => input)
+	.validator((input: CreateRestaurantInput) => input)
 	.handler(async ({ data }) => {
 		return withDb(env, (sql) => {
 			const handler = createRestaurantHandler(sql);
@@ -55,7 +55,7 @@ type ChangeMenuInput = {
 };
 
 const changeMenu = createServerFn({ method: 'POST' })
-	.inputValidator((input: ChangeMenuInput) => input)
+	.validator((input: ChangeMenuInput) => input)
 	.handler(async ({ data }) => {
 		return withDb(env, (sql) => {
 			const handler = changeRestaurantMenuHandler(sql);
@@ -77,7 +77,7 @@ const changeMenu = createServerFn({ method: 'POST' })
 	});
 
 const fetchRestaurant = createServerFn({ method: 'POST' })
-	.inputValidator((input: string) => input)
+	.validator((input: string) => input)
 	.handler(async ({ data: rid }) => {
 		return withDb(env, (sql) => {
 			const handler = restaurantQueryHandler(sql);
