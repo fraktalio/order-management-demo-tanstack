@@ -43,7 +43,7 @@
 		"prettier": "^3.9.4",
 		"prettier-plugin-tailwindcss": "^0.7.2",
 		"typescript": "^5.7.2",
-		"vite": "^7.1.7",
+		"vite": "^7.3.5",
 		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^3.0.5",
 		"wrangler": "^4.107.0"
