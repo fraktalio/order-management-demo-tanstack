@@ -16,11 +16,11 @@ import { ChefHat, RefreshCw } from 'lucide-react';
  */
 const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 	return withDb(env, async (sql) => {
-		// Load all order-related events from the event store
+		// Load all order-related events from the event store. This is a cross-entity listing (every
+		// order, not just one), so there's no single orderId tag to scope by — select_events_by_types
+		// (type-only filter) is the right tool here, not select_events_by_tags.
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
-			`SELECT e.data FROM events e
-			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
-			 ORDER BY e.id ASC`,
+			`SELECT data FROM select_events_by_types(ARRAY['RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent'])`,
 		);
 
 		// Parse events and project per order through the view

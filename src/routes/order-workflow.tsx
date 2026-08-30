@@ -3,8 +3,9 @@ import { createServerFn } from '@tanstack/react-start';
 import { env } from 'cloudflare:workers';
 import { useState, useEffect, useRef } from 'react';
 import { withDb } from '@/infrastructure/db';
+import { orderQueryHandler } from '@/application/query-handlers/orderQuery.ts';
 import { restaurantView, type RestaurantViewState } from '@/domain/views/restaurantView';
-import { orderView, type OrderViewState } from '@/domain/views/orderView';
+import { type OrderViewState } from '@/domain/views/orderView';
 import type { OrderWorkflowParams, PaymentEvent } from '@/application/workflows/paymentWorkflow';
 import {
 	Play,
@@ -58,9 +59,7 @@ const sendPaymentEvent = createServerFn({ method: 'POST' })
 const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () => {
 	return withDb(env, async (sql) => {
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
-			`SELECT e.data FROM events e
-			 WHERE e.type IN ('RestaurantCreatedEvent', 'RestaurantMenuChangedEvent')
-			 ORDER BY e.id ASC`,
+			`SELECT data FROM select_events_by_types(ARRAY['RestaurantCreatedEvent', 'RestaurantMenuChangedEvent'])`,
 		);
 		const map = new Map<string, RestaurantViewState>();
 		for (const row of rows) {
@@ -74,23 +73,22 @@ const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () 
 	});
 });
 
+// Tag-scoped (orderId:<id>) rather than a whole-table type scan — reuses the same
+// select_events_by_tags path the write side already relies on, so this only ever loads this one
+// order's events, not every order's. PaymentInitiatedEvent is intentionally excluded: orderView
+// treats it as a no-op (status stays CREATED), so there's nothing it could contribute here.
 const fetchOrderByWorkflow = createServerFn({ method: 'POST' })
-	.validator((input: { orderId: string; restaurantId: string }) => input)
+	.validator((input: { orderId: string }) => input)
 	.handler(async ({ data }) => {
 		return withDb(env, async (sql) => {
-			const rows = await sql.unsafe<{ data: Buffer }[]>(
-				`SELECT e.data FROM events e
-				 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
-				 ORDER BY e.id ASC`,
-			);
-			let state: OrderViewState | null = null;
-			for (const row of rows) {
-				const event = JSON.parse(Buffer.from(row.data).toString('utf-8'));
-				if (event.orderId === data.orderId) {
-					state = orderView.evolve(state, event);
-				}
-			}
-			return state;
+			const tag = 'orderId:' + data.orderId;
+			return orderQueryHandler(sql).handle([
+				[tag, 'RestaurantOrderPlacedEvent'],
+				[tag, 'PaymentExemptedEvent'],
+				[tag, 'OrderPaidEvent'],
+				[tag, 'OrderPaymentFailedEvent'],
+				[tag, 'OrderPreparedEvent'],
+			]);
 		});
 	});
 
@@ -651,7 +649,7 @@ function OrderTracker() {
 		setStatus({ type: 'loading' });
 		setOrder(null);
 		try {
-			const data = await fetchOrderByWorkflow({ data: { orderId: oid, restaurantId: rid } });
+			const data = await fetchOrderByWorkflow({ data: { orderId: oid } });
 			if (data && data.orderId) {
 				setOrder(data);
 				setStatus({ type: 'success' });

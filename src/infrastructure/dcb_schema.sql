@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 CREATE UNIQUE INDEX IF NOT EXISTS events_id_cover_type_idx
     ON events (id) INCLUDE (type);
 
--- Composite index: type-filtered range scans (select_events_by_type, poll_partition)
+-- Composite index: type-filtered range scans (select_events_by_type, select_events_by_types,
+-- poll_partition)
 CREATE INDEX IF NOT EXISTS events_type_id_idx
     ON events (type, id);
 
@@ -102,7 +103,32 @@ AS $$
      LIMIT COALESCE(limit_count, 9223372036854775807);
 $$;
 
--- 4.3 Select events by DCB query (tag containment, GIN-index-friendly)
+-- 4.3 Select events by multiple types
+--
+-- Same as 4.2, but for callers that need several event types at once (e.g. a cross-entity listing
+-- query that folds many entities' events per id, like fetchAllRestaurants/fetchAllOrders) without a
+-- per-type round trip. Not part of @fraktalio/fmodel-decider's own schema — an app-specific addition
+-- alongside it, for read paths that have no single tag to scope by (so select_events_by_tags doesn't
+-- apply) but still only want *some* event types out of the whole store.
+CREATE OR REPLACE FUNCTION select_events_by_types(
+    event_types text[],
+    after_id    bigint DEFAULT 0,
+    limit_count bigint DEFAULT 9223372036854775807
+)
+RETURNS SETOF events
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+AS $$
+    SELECT *
+      FROM events
+     WHERE type = ANY(event_types)
+       AND id > COALESCE(after_id, 0)
+     ORDER BY id ASC
+     LIMIT COALESCE(limit_count, 9223372036854775807);
+$$;
+
+-- 4.4 Select events by DCB query (tag containment, GIN-index-friendly)
 --
 -- An event matches a query item when its tags are a superset of the query item's tags
 -- (`e.tags @> qi.tags`) and, if the query item restricts the type, the event's type matches it.
@@ -136,9 +162,9 @@ AS $$
      LIMIT COALESCE(limit_count, 9223372036854775807);
 $$;
 
--- 4.4 Select last event per query item group (for last_event_only mode)
+-- 4.5 Select last event per query item group (for last_event_only mode)
 --
--- Same `events.tags @> qi.tags` containment check as 4.3, `DISTINCT ON` per query-item group
+-- Same `events.tags @> qi.tags` containment check as 4.4, `DISTINCT ON` per query-item group
 -- (`ordinality`) to keep only the newest matching event in each group.
 CREATE OR REPLACE FUNCTION select_last_events_by_tags(
     query_items dcb_query_item_tt[]
