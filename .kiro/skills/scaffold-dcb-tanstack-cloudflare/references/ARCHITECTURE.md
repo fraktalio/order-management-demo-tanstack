@@ -50,8 +50,8 @@ Unlike the traditional aggregate pattern, DCB defines consistency boundaries
 2. **Tag-based event streams** — events are tagged with entity IDs
    (e.g., `restaurantId:r1`). Repositories query by `(tag, eventType)` tuples.
 
-3. **Optimistic concurrency** — `conditional_append` checks for conflicts
-   since the last read (`after_id`), retrying on conflict.
+3. **Optimistic concurrency** — `append` checks for conflicts since the last
+   read (`after_id`), retrying on conflict.
 
 4. **Cross-entity boundaries** — a single decider can span multiple entities
    (e.g., `placeOrderDecider` reads restaurant events AND order events).

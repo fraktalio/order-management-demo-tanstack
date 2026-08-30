@@ -11,14 +11,14 @@ import { ChefHat, RefreshCw } from 'lucide-react';
 // ─── Server Functions ───────────────────────────────────────────────
 
 /**
- * Fetches all orders by querying dcb.events directly for order-related event types,
+ * Fetches all orders by querying events directly for order-related event types,
  * then projects each order through the orderView to compute current state.
  */
 const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 	return withDb(env, async (sql) => {
 		// Load all order-related events from the event store
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
-			`SELECT e.data FROM dcb.events e
+			`SELECT e.data FROM events e
 			 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
 			 ORDER BY e.id ASC`,
 		);

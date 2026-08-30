@@ -132,7 +132,7 @@ For queries that don't fit a single view, load events directly:
 const fetchAllOrders = createServerFn({ method: 'POST' }).handler(async () => {
 	return withDb(env, async (sql) => {
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
-			`SELECT e.data FROM dcb.events e
+			`SELECT e.data FROM events e
        WHERE e.type IN ('RestaurantOrderPlacedEvent', 'OrderPaidEvent', ...)
        ORDER BY e.id ASC`,
 		);

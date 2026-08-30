@@ -9,7 +9,7 @@ showcasing the **Dynamic Consistency Boundary (DCB)** pattern from
 [PostgreSQL](https://www.postgresql.org/) serves as the event store, accessed
 through [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/)
 for connection pooling and low-latency queries — with the DCB schema providing
-tag-based indexing and optimistic concurrency via `conditional_append`.
+tag-based indexing and optimistic concurrency via `append`.
 
 ![Home](home.png)
 
@@ -72,22 +72,24 @@ A production-ready event-sourced repository using PostgreSQL with optimistic
 locking, flexible querying, type-safe tag-based indexing, and built-in
 idempotency.
 
-The storage layout uses the `dcb` schema with these structures:
+Everything lives directly in `public` (as of `@fraktalio/fmodel-decider`
+v0.12.0 — earlier versions put it all under a `dcb` schema; v0.12.0 dropped
+that upstream).
 
 | Structure                    | Description                                                                        |
 | ---------------------------- | ---------------------------------------------------------------------------------- |
-| `dcb.events`                 | Primary event storage (id, type, data as bytea, tags, idempotency_key, created_at) |
-| `dcb.event_tags`             | Tag index — maps `(tag, event_id)` for fast tag-based lookups                      |
-| `dcb.idempotency_keys`       | Tracks processed idempotency keys with their command kind                          |
-| `conditional_append`         | Atomic conflict check + append with optimistic locking via `after_id`              |
+| `events`                     | Primary event storage (id, type, data as bytea, tags, idempotency_key, created_at) |
+| `idempotency_keys`           | Tracks processed idempotency keys with their command kind                          |
+| `append`                     | Atomic conflict check + append with optimistic locking via `after_id`              |
 | `select_events_by_tags`      | Full-replay event loading by tag-based query tuples                                |
 | `select_last_events_by_tags` | Idempotent (last-event) loading per query group                                    |
 
-Event data is stored once as bytea; the `event_tags` table provides secondary
-indexing. The repository automatically extracts tags from event `tagFields`
-in `"fieldName:value"` format, enabling flexible querying by any combination
-of tag fields. Optimistic locking uses an integer `after_id` (the max event id
-at load time) instead of versionstamps.
+Event data is stored once as bytea; tags are a `text[]` column on `events`
+itself, queried via Postgres's array containment operator (`tags @> ...`),
+GIN-indexed — no separate tag-index table. The repository automatically
+extracts tags from event `tagFields` in `"fieldName:value"` format, enabling
+flexible querying by any combination of tag fields. Optimistic locking uses an
+integer `after_id` (the max event id at load time) instead of versionstamps.
 
 ### Sliced / Vertical Repositories
 
@@ -124,7 +126,7 @@ aggregate pattern but is just a wider tuple query here. Similarly,
 paid orders can be prepared.
 
 Each tuple `("tag", "eventType")` maps to a PostgreSQL tag-based query via
-`dcb.select_events_by_tags`, so the repository fetches only the matching events
+`select_events_by_tags`, so the repository fetches only the matching events
 with no full-stream scanning. The result: every use case pays only for the
 events it actually reads, and adding a new use case never widens the query of
 an existing one.
@@ -142,8 +144,8 @@ const events = await handler.handle({
 ## Idempotency
 
 Every command requires an `idempotencyKey` (enforced by `CommandMetadata` at the
-handler level). The key is stored alongside events in the `dcb.events` table and
-tracked in `dcb.idempotency_keys`. When a command is retried with the same key,
+handler level). The key is stored alongside events in the `events` table and
+tracked in `idempotency_keys`. When a command is retried with the same key,
 the repository returns the previously stored events instead of re-executing the
 decider — making retries safe and transparent.
 
@@ -504,7 +506,6 @@ src/
 │   ├── db.ts                 # withDb(env, fn) — Postgres.js connection lifecycle
 │   ├── pg-client-adapter.ts  # Adapts postgres.js to fmodel-decider SqlClient
 │   ├── dcb_schema.sql        # PostgreSQL DCB schema (run once)
-│   ├── dcb_schema_migration_idempotency.sql  # Migration: adds idempotency support
 │   └── repositories/         # PostgresEventRepository per use case
 ├── components/               # Shared React components (Header, etc.)
 ├── routes/                   # File-based routes (TanStack Router)
@@ -549,10 +550,12 @@ vite.config.ts                # Vite + Cloudflare + Tailwind config
    on first boot. Credentials match `wrangler.jsonc`:
    `postgres://ivan:password@localhost:5432/postgres`
 
-   > **Upgrading from an older schema?** Run
-   > `src/infrastructure/dcb_schema_migration_idempotency.sql` against your
-   > existing database to add the `idempotency_key` column and
-   > `dcb.idempotency_keys` table. Or `docker compose down -v` to start fresh.
+   > **Upgrading from an older schema?** `@fraktalio/fmodel-decider` v0.12.0
+   > made a breaking change to `dcb_schema.sql` (dropped the `dcb` schema and
+   > the `event_tags` table, consolidated `conditional_append`/
+   > `unconditional_append` into a single `append`) with no bundled migration
+   > path upstream. Run `docker compose down -v` to recreate the volume
+   > against the current schema.
 
 3. Start the dev server:
 

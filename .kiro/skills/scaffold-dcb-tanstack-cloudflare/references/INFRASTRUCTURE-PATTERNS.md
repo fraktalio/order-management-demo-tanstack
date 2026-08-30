@@ -358,11 +358,10 @@ volumes:
 
 The full DCB schema is in `src/infrastructure/dcb_schema.sql`. It provides:
 
-- `dcb.events` table — primary event storage
-- `dcb.event_tags` table — tag index for fast lookups
-- `dcb.conditional_append()` — atomic conflict check + append
-- `dcb.select_events_by_tags()` — tag-based event loading
-- `dcb.select_last_events_by_tags()` — last-event-only loading
+- `events` table — primary event storage (tags as a GIN-indexed `text[]` column, no separate tag-index table)
+- `append()` — atomic conflict check + append
+- `select_events_by_tags()` — tag-based event loading
+- `select_last_events_by_tags()` — last-event-only loading
 
 Copy the schema file as-is for new projects. It's auto-applied by Docker Compose
 on first boot.

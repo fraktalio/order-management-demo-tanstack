@@ -17,8 +17,8 @@ A restaurant order management demo built with TanStack Start, deployed to Cloudf
 
 ## Architecture
 
-- **Event Sourcing**: Every state change is stored as an immutable event in the `dcb` schema in PostgreSQL. State is derived by replaying/projecting events
-- **Dynamic Consistency Boundary (DCB)**: Tag-based event streams with optimistic concurrency via `conditional_append`. No rigid aggregate boundaries
+- **Event Sourcing**: Every state change is stored as an immutable event in the `events` table in PostgreSQL. State is derived by replaying/projecting events
+- **Dynamic Consistency Boundary (DCB)**: Tag-based event streams with optimistic concurrency via `append`. No rigid aggregate boundaries
 - **fmodel-decider**: Pure functional domain modeling — deciders for command handling, projections for read-side views, `EventSourcedCommandHandler` and `EventSourcedQueryHandler` for wiring
 - **Server Functions**: TanStack Start `createServerFn` calls domain handlers directly via `withDb(env, sql => ...)` — no intermediate REST calls from page routes
 - **Cloudflare Workflows**: `PaymentWorkflow` wraps two command handlers (`placeOrder` + `markOrderPaid`/`markOrderPaymentFailed`) into a durable workflow with retries, persistent state, and `waitForEvent` for external payment signals

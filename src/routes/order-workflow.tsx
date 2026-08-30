@@ -58,7 +58,7 @@ const sendPaymentEvent = createServerFn({ method: 'POST' })
 const fetchAllRestaurants = createServerFn({ method: 'POST' }).handler(async () => {
 	return withDb(env, async (sql) => {
 		const rows = await sql.unsafe<{ data: Buffer }[]>(
-			`SELECT e.data FROM dcb.events e
+			`SELECT e.data FROM events e
 			 WHERE e.type IN ('RestaurantCreatedEvent', 'RestaurantMenuChangedEvent')
 			 ORDER BY e.id ASC`,
 		);
@@ -79,7 +79,7 @@ const fetchOrderByWorkflow = createServerFn({ method: 'POST' })
 	.handler(async ({ data }) => {
 		return withDb(env, async (sql) => {
 			const rows = await sql.unsafe<{ data: Buffer }[]>(
-				`SELECT e.data FROM dcb.events e
+				`SELECT e.data FROM events e
 				 WHERE e.type IN ('RestaurantOrderPlacedEvent', 'PaymentExemptedEvent', 'OrderPaidEvent', 'OrderPaymentFailedEvent', 'OrderPreparedEvent')
 				 ORDER BY e.id ASC`,
 			);
